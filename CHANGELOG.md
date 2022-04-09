@@ -1,3 +1,5 @@
+### version 0.0.4 and 0.0.5
+* Improvements in README
 ### version 0.0.3
 * Fix home page link
 ### version 0.0.2
