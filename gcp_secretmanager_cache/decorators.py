@@ -2,23 +2,27 @@
 """Decorators for use with gcp secret caching library """
 import json
 
-from . import GCPCachedSecret
+from gcp_secretmanager_cache import GCPCachedSecret
 
 class InjectSecretString:
     """Decorator implementing high-level Secrets Manager caching client"""
 
-    def __init__(self, secret_id, ttl=60):
+    def __init__(self, secret_id, ttl=60, encoding="UTF-8"):
         """
         Constructs a decorator to inject a single non-keyworded argument from a cached secret for a given function.
 
         :type secret_id: str
         :param secret_id: The secret identifier
 
-        :type cache: gcp_secretamnager_cache.GCPCachedSecret
-        :param ttl: ttl of secret
+        :type ttl: int
+        :param ttl: Time to live of secret in seconds
+
+        :type encoding: string
+        :param encoding: Character encoding of secret if none is passed as binary default is UTF-8
         """
 
         self.cache = GCPCachedSecret(secret_name=secret_id,ttl=ttl)
+        self.encoding = encoding
 
     def __call__(self, func):
         """
@@ -28,8 +32,9 @@ class InjectSecretString:
         :param func: The function for injecting a single non-keyworded argument too.
         :return The function with the injected argument.
         """
-
         secret = self.cache.get_secret()
+        if self.encoding:
+            secret = secret.decode(self.encoding)
 
         def _wrapped_func(*args, **kwargs):
             """

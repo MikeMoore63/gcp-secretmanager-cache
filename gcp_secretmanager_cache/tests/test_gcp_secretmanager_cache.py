@@ -10,7 +10,7 @@ from __future__ import unicode_literals
 
 import datetime
 import logging
-import pprint
+import json
 from time import sleep
 import google.auth
 import google_crc32c
@@ -19,7 +19,7 @@ from google.cloud import secretmanager, secretmanager_v1
 import unittest
 
 
-from gcp_secretmanager_cache import GCPCachedSecret, NoActiveSecretVersion
+from gcp_secretmanager_cache import GCPCachedSecret, NoActiveSecretVersion, InjectKeywordedSecretString, InjectSecretString
 
 def setup_module():
     logging.basicConfig(level=logging.DEBUG)
@@ -31,7 +31,9 @@ def setup_module():
                       "SECRET_ALL_DISABLED",
                       "SECRET_ENABLE_THEN_DISABLE",
                       "SECRET_ENABLE_THEN_DISABLE_PAUSE",
-                      "SECRET_2_VERSION_PAUSE"]:
+                      "SECRET_2_VERSION_PAUSE",
+                      "TEST_SIMPLE_DECORATOR"
+                      "TEST_DECORATOR_KEYWORD"]:
 
         TestScannerMethods.delete_secret(project_id,secret_id)
 
@@ -357,6 +359,80 @@ class TestScannerMethods(unittest.TestCase):
                 break
 
         assert success, "Should always succeed"
+
+    def setup_test_decorators(self,payload=None,secret_id=None):
+        if not payload:
+            payload = "keyword secret"
+
+        if not secret_id:
+            secret_id = "TEST_SIMPLE_DECORATOR"
+
+        self.add_secret(secret_id)
+
+        # Convert the string payload into a bytes. This step can be omitted if you
+        # pass in bytes instead of a str for the payload argument.
+        payload = payload.encode("UTF-8")
+
+        # Calculate payload checksum. Passing a checksum in add-version request
+        # is optional.
+        crc32c = google_crc32c.Checksum()
+        crc32c.update(payload)
+        parent = self.client.secret_path(self.project_id,secret_id)
+
+        # Add the secret version.
+        response = self.client.add_secret_version(
+            request={
+                "parent": parent,
+                "payload": {"data": payload, "data_crc32c": int(crc32c.hexdigest(), 16)},
+            }
+        )
+
+        secret_id = "TEST_DECORATOR_KEYWORD"
+        self.add_secret(secret_id)
+
+        # Convert the string payload into a bytes. This step can be omitted if you
+        # pass in bytes instead of a str for the payload argument.
+        payload = json.dumps({"username":"bob","password":"password"}).encode("UTF-8")
+
+        # Calculate payload checksum. Passing a checksum in add-version request
+        # is optional.
+        crc32c = google_crc32c.Checksum()
+        crc32c.update(payload)
+        parent = self.client.secret_path(self.project_id, secret_id)
+
+        # Add the secret version.
+        response = self.client.add_secret_version(
+            request={
+                "parent": parent,
+                "payload": {"data": payload, "data_crc32c": int(crc32c.hexdigest(), 16)},
+            }
+        )
+
+        return response
+
+    def test_decorators(self):
+        @InjectKeywordedSecretString(
+            secret_id=self.client.secret_path(self.project_id, "TEST_DECORATOR_KEYWORD"),
+            func_username='username',
+            func_password='password')
+        def function_to_be_decorated(func_username, func_password, more_stuff=None):
+            print(
+                f'Something cool is being done with the func_username and func_password arguments '
+                f'here {func_username} and {func_password}')
+            assert func_username == "bob", "User name needs to be bob"
+            assert func_password == "password", "Password needs to be passowrd"
+            assert more_stuff == "hello", "In testing we expect another arg"
+
+        @InjectSecretString(secret_id=self.client.secret_path(self.project_id, "TEST_SIMPLE_DECORATOR"))
+        def function_to_be_decorated2(asecret,fred=None):
+            assert asecret == "keyword secret", "key word secret not what we expect from decorator"
+            assert fred is None or fred == "hello", "Key word arg not what is expected"
+
+        function_to_be_decorated(more_stuff="hello")
+        function_to_be_decorated2()
+        function_to_be_decorated2(fred="hello")
+        function_to_be_decorated2("hello")
+
 
 def main(argv):
     unittest.main()
