@@ -44,7 +44,7 @@ The library also includes several decorator functions to wrap existing function 
 * `@InjectedKeywordedSecretString` - This decorator expects the secret id and cache as the first and second arguments, with subsequent arguments mapping a parameter key from the function that is being wrapped to a key in the secret.  The secret being retrieved from the cache must contain a SecretString and that string must be JSON-based.
 * `@InjectSecretString` - This decorator also expects the secret id and cache as the first and second arguments.  However, this decorator simply returns the result of the cache lookup directly to the first argument of the wrapped function.  The secret does not need to be JSON-based but it must contain a SecretString.
 ```python
-from gcp_secretmanager_cache import decorators
+from gcp_secretmanager_cache import InjectKeywordedSecretString, InjectSecretString
 
 
 @InjectKeywordedSecretString(secret_id='mysecret', func_username='username', func_password='password')
