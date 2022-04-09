@@ -13,7 +13,7 @@ The aim of it is to offload complexity and logic of api calls to cache and manag
 
 Usage
 ```angular2html
-from gcp_secretmanager_cache import GCPCachedSecret
+from gcp_secretmanager_cache import GCPCachedSecret, decorators, NoActiveSecretVersion
 
 # Create a secrets cache safe to share across threads 
 # 
@@ -35,4 +35,24 @@ sleep(120.0)
 # now recheck the secret
 secret1 = bar_secret_cache.get_secret()
 
+
+```
+
+#### Decorators
+The library also includes several decorator functions to wrap existing function calls with SecretString-based secrets:
+* `@InjectedKeywordedSecretString` - This decorator expects the secret id and cache as the first and second arguments, with subsequent arguments mapping a parameter key from the function that is being wrapped to a key in the secret.  The secret being retrieved from the cache must contain a SecretString and that string must be JSON-based.
+* `@InjectSecretString` - This decorator also expects the secret id and cache as the first and second arguments.  However, this decorator simply returns the result of the cache lookup directly to the first argument of the wrapped function.  The secret does not need to be JSON-based but it must contain a SecretString.
+```python
+from gcp_secretmanager_cache import decorators
+
+
+@InjectKeywordedSecretString(secret_id='mysecret', func_username='username', func_password='password')
+def function_to_be_decorated(func_username, func_password):
+    print('Something cool is being done with the func_username and func_password arguments here')
+    ...
+
+@InjectSecretString('mysimplesecret', cache)
+def function_to_be_decorated(arg1, arg2, arg3):
+    # arg1 contains the cache lookup result of the 'mysimplesecret' secret.
+    # arg2 and arg3, in this example, must still be passed when calling function_to_be_decorated().
 ```
