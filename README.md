@@ -12,7 +12,7 @@ The aim of it is to offload complexity and logic of api calls to cache and manag
 
 
 Usage
-```angular2html
+```python
 from gcp_secretmanager_cache import GCPCachedSecret, decorators, NoActiveSecretVersion
 
 # Create a secrets cache safe to share across threads 
