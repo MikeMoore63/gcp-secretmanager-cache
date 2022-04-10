@@ -11,7 +11,7 @@ from __future__ import unicode_literals
 import datetime
 import logging
 import json
-from time import sleep
+from time import sleep, perf_counter, perf_counter_ns
 import google.auth
 import google_crc32c
 from google.api_core import exceptions
@@ -44,7 +44,8 @@ def setup_module():
                       "TEST_NOSECRET_TOSECRET",
                       "TEST_NOSECRET_TOSECRET_PAUSE",
                       "TEST_SECRET_THEN_NOSECRET",
-                      "TEST_SECRET_THEN_NOSECRET_PAUSE"]:
+                      "TEST_SECRET_THEN_NOSECRET_PAUSE",
+                      "TEST_SECRET_PERF_KEY"]:
         TestScannerMethods.delete_secret(project_id, secret_id)
     faulthandler.register(signal.SIGUSR1, file=sys.stderr, all_threads=True, chain=False)
 
@@ -529,6 +530,25 @@ class TestScannerMethods(unittest.TestCase):
             assert 1==0,"Should not get here"
         except exceptions.NotFound as e:
             pass
+
+    def setup_test_performance(self):
+        self.setup_test_happy_path_versions(payload="a secret",
+                                            secret_id="TEST_SECRET_PERF_KEY")
+
+    def test_test_performance(self):
+        name = self.client.secret_path(self.project_id, "TEST_SECRET_PERF_KEY")
+        secret_cache = GCPCachedSecret(name)
+        tic = perf_counter()
+        secret = secret_cache.get_secret()
+        toc = perf_counter()
+        print(f"Downloaded the initial secret in {toc - tic:0.4f} seconds",file=sys.stderr)
+        tic = perf_counter()
+        loopyloop = 5000000
+        for i in range(0, loopyloop):
+            secret = secret_cache.get_secret()
+        toc = perf_counter()
+        print(f"Downloaded the secret {loopyloop:%,d} times {(toc - tic):0.7f} in seconds and in average time of {(toc - tic)/loopyloop:0.7f} seconds",file=sys.stderr)
+
 
 
 def main(argv):

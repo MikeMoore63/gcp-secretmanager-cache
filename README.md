@@ -14,7 +14,9 @@ There are issues that can occur such as versions being disabled. Or not existing
 
 Usage
 ```python
-from gcp_secretmanager_cache import GCPCachedSecret, decorators, NoActiveSecretVersion
+from gcp_secretmanager_cache import GCPCachedSecret, NoActiveSecretVersion
+from google.api_core import exceptions
+from time import sleep
 
 # Create a secrets cache safe to share across threads 
 # 
@@ -35,6 +37,18 @@ sleep(120.0)
 
 # now recheck the secret
 secret1 = bar_secret_cache.get_secret()
+
+# if all secret versions are disabled or no versions exist
+# This happens on initial call or later  calls if secret is
+# Disabled
+try:
+    secret1 = bar_secret_cache.get_secret()
+# Note normal exceptions are passed to client thread
+# Only serverside errors and quota errors are suppressed as deemed a retry may resolve these
+except exceptions.NotFound:
+    print("The secret the versions where in does not exist or has been deleted")
+except NoActiveSecretVersion:
+    print("Secret exists but no enabled secret versions")
 
 
 ```
