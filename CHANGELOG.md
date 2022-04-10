@@ -1,3 +1,5 @@
+### version 0.0.7
+* Fix issue with threads not garbage collecting by using weakref
 ### version 0.0.6
 * We now surpress server and quota issues if secret is set. So handle server based errors to make client more reliable
 ### version 0.0.4 and 0.0.5
