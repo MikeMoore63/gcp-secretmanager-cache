@@ -17,6 +17,12 @@ import google_crc32c
 from google.api_core import exceptions
 from google.cloud import secretmanager, secretmanager_v1
 import unittest
+import faulthandler
+import threading
+import signal
+import os
+import gc
+import sys
 
 
 from gcp_secretmanager_cache import GCPCachedSecret, NoActiveSecretVersion, InjectKeywordedSecretString, InjectSecretString
@@ -36,9 +42,18 @@ def setup_module():
                       "TEST_DECORATOR_KEYWORD"]:
 
         TestScannerMethods.delete_secret(project_id,secret_id)
+    faulthandler.register(signal.SIGUSR1, file=sys.stderr, all_threads=True, chain=False)
 
+def dump_threads():
+    threads_now = ",".join([thread.name for thread in threading.enumerate()])
+    print(f"threads now -> {threads_now}",file=sys.stderr)
+    # os.kill(os.getpid(), signal.SIGUSR1)
+    
 def teardown_module():
+    gc.collect()
     setup_module()
+    sleep(2.0)
+    dump_threads()
 
 class TestScannerMethods(unittest.TestCase):
     def setUp(self):
@@ -46,7 +61,6 @@ class TestScannerMethods(unittest.TestCase):
         credentials, project_id  = google.auth.default()
         self.credentials = credentials
         self.project_id = project_id
-
 
     @staticmethod
     def delete_secret(project_id, secret_id):
@@ -90,13 +104,16 @@ class TestScannerMethods(unittest.TestCase):
         return response
 
     def test_missing_secret(self):
-
+        dump_threads()
         name = self.client.secret_path(self.project_id, "NEVER_EXISTS_SECRET")
         secret_cache = GCPCachedSecret(name)
         try:
             secret_stuff = secret_cache.get_secret()
         except exceptions.NotFound as e:
             pass
+        del secret_cache
+        dump_threads()
+
 
     def setup_test_missing_secret_version(self):
         secret_id = "EMPTY_SECRET"
@@ -113,13 +130,15 @@ class TestScannerMethods(unittest.TestCase):
         return response
 
     def test_missing_secret_version(self):
-
+        dump_threads()
         name = self.client.secret_path(self.project_id, "EMPTY_SECRET")
         secret_cache = GCPCachedSecret(name)
         try:
             secret_stuff = secret_cache.get_secret()
         except NoActiveSecretVersion as e:
             pass
+    
+        dump_threads()
 
     def setup_test_happy_path_versions(self,payload=None,secret_id=None):
         if not payload:
@@ -150,7 +169,7 @@ class TestScannerMethods(unittest.TestCase):
         return response
 
     def test_happy_path_versions(self):
-
+        dump_threads()
         name = self.client.secret_path(self.project_id, "SECRET_1_VERSION")
         secret_cache = GCPCachedSecret(name)
         secret_version1_get = secret_cache.get_secret()
@@ -163,6 +182,8 @@ class TestScannerMethods(unittest.TestCase):
         secret_version2_get = secret_cache.get_secret()
         assert secret_version2_get.decode(
             "utf-8") == "dodgy secret 2", "Secret not what is expected"
+    
+        dump_threads()
 
 
     def setup_test_versions_all_disabled(self,payload=None,secret_id=None):
@@ -197,7 +218,7 @@ class TestScannerMethods(unittest.TestCase):
         return response
 
     def test_versions_all_disabled(self):
-
+        dump_threads()
         name = self.client.secret_path(self.project_id, "SECRET_ALL_DISABLED")
         secret_cache = GCPCachedSecret(name)
         try:
@@ -205,6 +226,8 @@ class TestScannerMethods(unittest.TestCase):
             assert 1==0,"Failure on no  secret"
         except NoActiveSecretVersion as e:
             return True
+   
+        dump_threads()
 
     def setup_test_enabled_then_disable(self,payload=None,secret_id=None):
         if not payload:
@@ -236,6 +259,7 @@ class TestScannerMethods(unittest.TestCase):
         return response
 
     def test_enabled_then_disable(self):
+        dump_threads()
         name = self.client.secret_path(self.project_id, "SECRET_ENABLE_THEN_DISABLE")
         secret_cache = GCPCachedSecret(name)
         secret_cache.get_secret()
@@ -254,6 +278,8 @@ class TestScannerMethods(unittest.TestCase):
             assert 1==0, "Should never get here"
         except NoActiveSecretVersion as e:
             pass
+  
+        dump_threads()
 
     def setup_test_enabled_then_disable_pause(self,payload=None,secret_id=None):
         if not payload:
@@ -285,6 +311,7 @@ class TestScannerMethods(unittest.TestCase):
         return response
 
     def test_enabled_then_disable_pause(self):
+        dump_threads()
         name = self.client.secret_path(self.project_id, "SECRET_ENABLE_THEN_DISABLE_PAUSE")
         secret_cache = GCPCachedSecret(name)
         secret_cache.get_secret()
@@ -311,6 +338,8 @@ class TestScannerMethods(unittest.TestCase):
                 break
 
         assert success, "Should always succeed"
+  
+        dump_threads()
 
     def setup_test_happy_path_versions_pause(self,payload=None,secret_id=None):
         if not payload:
@@ -341,7 +370,7 @@ class TestScannerMethods(unittest.TestCase):
         return response
 
     def test_happy_path_versions_pause(self):
-
+        dump_threads()
         name = self.client.secret_path(self.project_id, "SECRET_2_VERSION_PAUSE")
         secret_cache = GCPCachedSecret(name)
         secret_version1_get = secret_cache.get_secret()
@@ -359,6 +388,8 @@ class TestScannerMethods(unittest.TestCase):
                 break
 
         assert success, "Should always succeed"
+ 
+        dump_threads()
 
     def setup_test_decorators(self,payload=None,secret_id=None):
         if not payload:
@@ -428,10 +459,12 @@ class TestScannerMethods(unittest.TestCase):
             assert asecret == "keyword secret", "key word secret not what we expect from decorator"
             assert fred is None or fred == "hello", "Key word arg not what is expected"
 
+        dump_threads()
         function_to_be_decorated(more_stuff="hello")
         function_to_be_decorated2()
         function_to_be_decorated2(fred="hello")
         function_to_be_decorated2("hello")
+        dump_threads()
 
 
 def main(argv):
