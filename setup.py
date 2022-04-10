@@ -40,10 +40,9 @@ setuptools.setup(
     license="MIT",
     scripts=[],
     install_requires=[
-        "google-cloud<1.0",
-        "google-cloud-secret-manager>=2.9.2<3.0"
-        "google-api-python-client>=2.0.0,<3.0",
-        "grpcio<=1.44.0"
+        "google-cloud-secret-manager~=2.0",
+        "google-api-python-client~=2.0",
+        "grpcio~=1.0"
     ],
     classifiers=[
         "Programming Language :: Python :: 3",
