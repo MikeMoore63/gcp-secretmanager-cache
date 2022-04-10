@@ -1,3 +1,5 @@
+### version 0.1.2
+* Corrected test in short description
 ### version 0.1.1
 * Remove uneeded setup.py dependency
 * Change mechanism to define dependnecies to remove release candidates and stick withs tble versions
