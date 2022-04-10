@@ -52,8 +52,12 @@ def dump_threads():
 def teardown_module():
     gc.collect()
     setup_module()
-    sleep(2.0)
+    wait = 60.0
     dump_threads()
+    while(len(threading.enumerate()) != 1 and wait > 0.0):
+        sleep(5.0)
+        wait -= 5.0
+        dump_threads()
 
 class TestScannerMethods(unittest.TestCase):
     def setUp(self):

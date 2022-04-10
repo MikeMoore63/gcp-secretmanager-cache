@@ -46,7 +46,8 @@ def _background_refresh_thread(secret_cache_weak_ref):
     """
     # looks like a risk but if weak ref fails will throw exception
     # and kill the thread anyway
-    last_run = datetime.utcnow() - timedelta(seconds=secret_cache_weak_ref().ttl)
+    ttl = float(min(secret_cache_weak_ref().ttl,10.0))
+    last_run = datetime.utcnow() - timedelta(seconds=ttl)
 
     # While the object that spawned thread exists
     while secret_cache_weak_ref():
@@ -75,7 +76,7 @@ def _background_refresh_thread(secret_cache_weak_ref):
         except Exception as e:
             logging.getLogger(__name__).exception(f"While refreshing secret {secret_cache.secret_name}")
         del secret_cache
-        sleep(0.2)
+        sleep(ttl)
 
 
 class GCPCachedSecret():
