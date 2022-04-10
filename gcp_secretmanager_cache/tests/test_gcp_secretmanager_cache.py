@@ -547,7 +547,7 @@ class TestScannerMethods(unittest.TestCase):
         for i in range(0, loopyloop):
             secret = secret_cache.get_secret()
         toc = perf_counter()
-        print(f"Downloaded the secret {loopyloop:%,d} times {(toc - tic):0.7f} in seconds and in average time of {(toc - tic)/loopyloop:0.7f} seconds",file=sys.stderr)
+        print(f"Downloaded the secret {loopyloop:,d} times in {(toc - tic):0.4f} seconds and at an average time of {(toc - tic)/loopyloop:0.10f} seconds",file=sys.stderr)
 
 
 
