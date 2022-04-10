@@ -29,7 +29,7 @@ setuptools.setup(
     version=verstr,
     author="Mike Moore",
     author_email="z_z_zebra@yahoo.com",
-    description="A utility to cache google cloud platform secrets and allow concurrent access that also always provides thelatest enabled version of a secret",
+    description="A utility to cache google cloud platform secrets and allow concurrent access that also always provides the latest enabled version of a secret",
     long_description_content_type="text/markdown",
     long_description=long_description,
     url="https://github.com/Mikemoore63/gcp-secretmanager-cache",
