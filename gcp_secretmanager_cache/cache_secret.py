@@ -46,7 +46,8 @@ def _background_refresh_thread(secret_cache_weak_ref):
     """
     # looks like a risk but if weak ref fails will throw exception
     # and kill the thread anyway
-    ttl = float(min(secret_cache_weak_ref().ttl,10.0))
+    # Put a floor on the thread
+    ttl = max(float(secret_cache_weak_ref().ttl),30.0)
     last_run = datetime.utcnow() - timedelta(seconds=ttl)
 
     # While the object that spawned thread exists
@@ -82,6 +83,7 @@ def _background_refresh_thread(secret_cache_weak_ref):
 class GCPCachedSecret():
 
     def __init__(self, secret_name, _credentials_callback=None, ttl=60.0):
+        assert ttl >= 30.0,"Trying to renew secrets at too high a frequency min is  30.0 seconds"
         self._project_id = None
         self._credentials_callback = None
         self.secret = None
@@ -125,6 +127,8 @@ class GCPCachedSecret():
             if not secret:
                 secret = self._get_secret()
                 self.secret = secret
+                if secret:
+                    self.exception = None
                 if self.exception:
                     raise self.exception[1]
             # if we have a secret certin exceptions related to
