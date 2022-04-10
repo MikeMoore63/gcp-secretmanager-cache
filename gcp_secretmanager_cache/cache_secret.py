@@ -15,20 +15,24 @@ from datetime import datetime, timedelta
 from time import sleep
 
 import google.auth
+from google.api_core import exceptions
 from google.cloud import secretmanager, secretmanager_v1
 
-class Error(Exception):
+class SecretCacheError(Exception):
     """Base Error class."""
 
 
-class NoActiveSecretVersion(Error):
+class NoActiveSecretVersion(SecretCacheError):
     CUSTOM_ERROR_MESSAGE = "Secret {} has no active enabled versions"
 
     def __init__(self, secret):
         super(NoActiveSecretVersion, self).__init__(self.CUSTOM_ERROR_MESSAGE.format(secret))
 
+SECRET_SURPRESSED_EXCEPTIONS = (exceptions.ServerError,
+                                exceptions.TooManyRequests)
 
 class GCPCachedSecret(object):
+
     def __init__(self, secret_name, _credentials_callback=None, ttl=60.0):
         self._project_id = None
         self._credentials_callback = None
@@ -80,9 +84,16 @@ class GCPCachedSecret(object):
                 secret = self._get_secret()
                 self.secret = secret
                 if self.exception:
-                    exc_type, exc_obj, exc_trace = self.exception
-                    raise exc_obj
-            if self.exception and isinstance(self.exception,tuple) and isinstance(self.exception[1], NoActiveSecretVersion):
+                    raise self.exception[1]
+            # if we have a secret certin exceptions related to
+            # server errors or rate limits are surpresses
+            # as retries should resolve these in background thread
+            # we handle exceptions like this as might be raised
+            # in thread that called this or happened asynchronously
+            # this looks to try and make errors appear as if the call
+            # Was synchronous
+            if not secret or (self.exception and isinstance(self.exception,tuple) and
+                    not isinstance(self.exception[1], SECRET_SURPRESSED_EXCEPTIONS)):
                 self.secret = None
                 raise self.exception[1]
 
