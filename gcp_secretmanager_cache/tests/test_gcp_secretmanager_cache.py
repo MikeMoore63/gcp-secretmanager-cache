@@ -42,7 +42,9 @@ def setup_module():
                       "TEST_SIMPLE_DECORATOR"
                       "TEST_DECORATOR_KEYWORD",
                       "TEST_NOSECRET_TOSECRET",
-                      "TEST_NOSECRET_TOSECRET_PAUSE"]:
+                      "TEST_NOSECRET_TOSECRET_PAUSE",
+                      "TEST_SECRET_THEN_NOSECRET",
+                      "TEST_SECRET_THEN_NOSECRET_PAUSE"]:
         TestScannerMethods.delete_secret(project_id, secret_id)
     faulthandler.register(signal.SIGUSR1, file=sys.stderr, all_threads=True, chain=False)
 
@@ -495,6 +497,38 @@ class TestScannerMethods(unittest.TestCase):
                                             secret_id="TEST_NOSECRET_TOSECRET_PAUSE")
         sleep(65.0)
         secret_cache.get_secret()
+
+    def setup_test_secret_then_no_secret(self):
+        self.setup_test_happy_path_versions(payload="a secret",
+                                            secret_id="TEST_SECRET_THEN_NOSECRET")
+
+    def test_secret_then_no_secret(self):
+        name = self.client.secret_path(self.project_id, "TEST_SECRET_THEN_NOSECRET")
+        secret_cache = GCPCachedSecret(name)
+        secret = secret_cache.get_secret()
+        self.delete_secret(self.project_id,"TEST_SECRET_THEN_NOSECRET")
+        secret_cache.invalidate_secret()
+        try:
+            secret = secret_cache.get_secret()
+            assert 1==0,"Should not get here"
+        except exceptions.NotFound as e:
+            pass
+
+    def setup_test_secret_then_no_secret_pause(self):
+        self.setup_test_happy_path_versions(payload="a secret",
+                                            secret_id="TEST_SECRET_THEN_NOSECRET_PAUSE")
+
+    def test_secret_then_no_secret_pause(self):
+        name = self.client.secret_path(self.project_id, "TEST_SECRET_THEN_NOSECRET_PAUSE")
+        secret_cache = GCPCachedSecret(name)
+        secret = secret_cache.get_secret()
+        self.delete_secret(self.project_id,"TEST_SECRET_THEN_NOSECRET_PAUSE")
+        sleep(65.0)
+        try:
+            secret = secret_cache.get_secret()
+            assert 1==0,"Should not get here"
+        except exceptions.NotFound as e:
+            pass
 
 
 def main(argv):
