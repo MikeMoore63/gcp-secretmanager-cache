@@ -1,4 +1,4 @@
-### version 0.0.8
+### version 0.0.9
 * Add performance tests to show impact of cache performance on secret fetching at scle
 ### version 0.0.8
 * Fix state issue when ok to start followed by exception later
