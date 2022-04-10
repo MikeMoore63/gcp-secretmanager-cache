@@ -1,3 +1,6 @@
+### version 0.0.8
+* Fix state issue when ok to start followed by exception later
+* Expand tests to cover this scenario
 ### version 0.0.7
 * Fix issue with threads not garbage collecting by using weakref
 ### version 0.0.6
