@@ -1,3 +1,5 @@
+### version 0.1.0
+* Correct formating in preformance test
 ### version 0.0.9
 * Add performance tests to show impact of cache performance on secret fetching at scle
 ### version 0.0.8
