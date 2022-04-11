@@ -61,12 +61,12 @@ The library also includes several decorator functions to wrap existing function 
 from gcp_secretmanager_cache import InjectKeywordedSecretString, InjectSecretString
 
 
-@InjectKeywordedSecretString(secret_id='mysecret', func_username='username', func_password='password')
+@InjectKeywordedSecretString(secret_id='projects/foo/secrets/mysecret', func_username='username', func_password='password')
 def function_to_be_decorated(func_username, func_password):
     print('Something cool is being done with the func_username and func_password arguments here')
     ...
 
-@InjectSecretString('mysimplesecret')
+@InjectSecretString('projects/foo/secrets/mysimplesecret')
 def function_to_be_decorated(arg1, arg2, arg3):
     # arg1 contains the cache lookup result of the 'mysimplesecret' secret.
     # arg2 and arg3, in this example, must still be passed when calling function_to_be_decorated().
