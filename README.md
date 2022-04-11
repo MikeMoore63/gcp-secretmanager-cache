@@ -6,7 +6,7 @@ You pass in a secret name not a version. To fetch a secret takes at least 2 api 
 This then allows a process in background to interact with secret manager to update secret behind the scenes. Enable and disable versions and bar the potential TTL it is forced to renew.
 There is also ways to destroy the secret cache if the client wants to proactively renew a secret.
 
-There is background thread that runs for every secret that at TTL fetches the secret in teh background.
+There is background thread that runs for every secret that at TTL fetches the secret in the background. The threads sleep for ttl and only wake to do work at that time including exiting. So the design is not for many of these objects to be short lived on the stack.
 
 The aim of it is to offload complexity and logic of api calls to cache and manage secrets and avoid API overheads in a reasonable way yet still keep secrets very usable. Especially for highly concurrent applications.
 
@@ -20,7 +20,7 @@ from time import sleep
 
 # Create a secrets cache safe to share across threads 
 # 
-bar_secret_cache = GCPCachedSecret("bar",ttl=60.0)
+bar_secret_cache = GCPCachedSecret("projects/foo/secrets/bar",ttl=60.0)
 
 # Find a secret 
 secret1 = bar_secret_cache.get_secret()
