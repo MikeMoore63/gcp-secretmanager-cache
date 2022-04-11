@@ -1,4 +1,4 @@
-### version 0.1.3
+### version 0.1.3 and 0.1.4
 * Improved README
 ### version 0.1.2
 * Corrected text in short description
