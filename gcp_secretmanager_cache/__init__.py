@@ -8,9 +8,13 @@ trades off reliability, usability, predictability and performance vs accuracy an
 
 from __future__ import absolute_import
 
-from gcp_secretmanager_cache.cache_secret import NoActiveSecretVersion, GCPCachedSecret
+from gcp_secretmanager_cache.cache_secret import GCPCachedSecret
+from gcp_secretmanager_cache.exceptions import NoActiveSecretVersion, SecretCacheError
 from gcp_secretmanager_cache.decorators import InjectKeywordedSecretString, InjectSecretString
 from ._version import __version__
 
-__all__ = ["NoActiveSecretVersion", "GCPCachedSecret", "InjectSecretString",
+__all__ = ["NoActiveSecretVersion",
+           "GCPCachedSecret",
+           "InjectSecretString",
+           "SecretCacheError",
            "InjectKeywordedSecretString"]
