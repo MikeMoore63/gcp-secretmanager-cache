@@ -32,8 +32,7 @@ SECRET_SURPRESSED_EXCEPTIONS = (exceptions.ServerError,
 def _background_refresh_thread(secret_cache_weak_ref):
     """
     Main background thread driver loop for copying
-    :param self: Basis of copy
-    :param stop_event: The wevent to stop thread
+    :param secret_cache_weak_ref: weak reference to secret cache
     :return: None
     """
     # looks like a risk but if weak ref fails will throw exception
@@ -97,7 +96,7 @@ class GCPCachedSecret():
         assert ttl >= 30.0, "Trying to renew secrets at too high a frequency min is  30.0 seconds"
 
         secret_version_match = re.search(
-            r'(projects\/[^\/]+\/secrets\/[^/]+)\/versions\/([0-9]+|latest)',
+            r'(projects/[^/]+/secrets/[^/]+)/versions/([0-9]+|latest)',
             secret_name)
 
         max_version = None
@@ -180,14 +179,19 @@ class GCPCachedSecret():
             )
             page_result = self._client().list_secret_versions(request=request)
             latest = None
-            for response in page_result:
+            for response in sorted(page_result, key=lambda d: d.create_time):
                 if self._max_version:
-                    version_num = re.search(r'projects\/[^/]+\/secrets\/[^/]+\/versions\/([0-9]+)',
-                                            response.name).group(1)
-                    if version_num > self._max_version:
+                    version_num = int(re.search(r'projects/[^/]+/secrets/[^/]+/versions/([0-9]+)',
+                                                response.name).group(1))
+                    if version_num == int(self._max_version):
+                        latest = response
                         break
                 if (latest is None or latest.create_time < response.create_time):
-                    latest = response
+                    if self._max_version:
+                        if version_num < int(self._max_version):
+                            latest = response
+                    else:
+                        latest = response
 
             if not latest:
                 raise NoActiveSecretVersion(self._secret_name)

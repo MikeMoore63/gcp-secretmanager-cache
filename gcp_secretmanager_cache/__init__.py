@@ -9,12 +9,26 @@ trades off reliability, usability, predictability and performance vs accuracy an
 from __future__ import absolute_import
 
 from gcp_secretmanager_cache.cache_secret import GCPCachedSecret
-from gcp_secretmanager_cache.exceptions import NoActiveSecretVersion, SecretCacheError
+from gcp_secretmanager_cache.exceptions import NoActiveSecretVersion, \
+    SecretCacheError, \
+    NewSecretCreateError, \
+    SecretRotatorError
 from gcp_secretmanager_cache.decorators import InjectKeywordedSecretString, InjectSecretString
+from gcp_secretmanager_cache.managers import SecretRotator, \
+    SecretRotatorMechanic, \
+    ChangeSecretMeta, \
+    APIKeyRotator
 from ._version import __version__
 
-__all__ = ["NoActiveSecretVersion",
+__all__ = ["__version__",
+           "NoActiveSecretVersion",
            "GCPCachedSecret",
            "InjectSecretString",
            "SecretCacheError",
-           "InjectKeywordedSecretString"]
+           "InjectKeywordedSecretString",
+           "SecretRotator",
+           "SecretRotatorMechanic",
+           "ChangeSecretMeta",
+           "NewSecretCreateError",
+           "SecretRotatorError",
+           "APIKeyRotator"]

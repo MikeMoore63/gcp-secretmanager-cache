@@ -35,14 +35,17 @@ setuptools.setup(
     url="https://github.com/Mikemoore63/gcp-secretmanager-cache",
     packages=setuptools.find_packages(),
     test_suite='nose.collector',
-    tests_require=['nose','google-crc32c'],
+    tests_require=['nose'],
     include_package_data=True,
     license="MIT",
     scripts=[],
     install_requires=[
         "google-cloud-secret-manager~=2.0",
         "google-api-python-client~=2.0",
-        "grpcio~=1.0"
+        "google-cloud-storage~=2.0",
+        "grpcio~=1.0",
+        "python-dateutil~=2.0",
+        "pytz>=2022.0"
     ],
     classifiers=[
         "Programming Language :: Python :: 3",

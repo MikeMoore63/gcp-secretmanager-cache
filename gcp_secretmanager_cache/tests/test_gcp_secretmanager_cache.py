@@ -8,24 +8,23 @@ from __future__ import division
 from __future__ import print_function
 from __future__ import unicode_literals
 
-import datetime
-import logging
+import faulthandler
+import gc
 import json
-from time import sleep, perf_counter, perf_counter_ns
+import logging
+import signal
+import sys
+import threading
+import unittest
+from dataclasses import asdict
+from time import sleep, perf_counter
+
 import google.auth
 import google_crc32c
 from google.api_core import exceptions
 from google.cloud import secretmanager, secretmanager_v1
-import unittest
-import faulthandler
-import threading
-import signal
-import os
-import gc
-import sys
 
-from gcp_secretmanager_cache import GCPCachedSecret, NoActiveSecretVersion, \
-    InjectKeywordedSecretString, InjectSecretString
+from gcp_secretmanager_cache import *
 
 
 def setup_module():
@@ -45,7 +44,8 @@ def setup_module():
                       "TEST_NOSECRET_TOSECRET_PAUSE",
                       "TEST_SECRET_THEN_NOSECRET",
                       "TEST_SECRET_THEN_NOSECRET_PAUSE",
-                      "TEST_SECRET_PERF_KEY"]:
+                      "TEST_SECRET_PERF_KEY",
+                      "TEST_SECRET_VERSION"]:
         TestScannerMethods.delete_secret(project_id, secret_id)
     faulthandler.register(signal.SIGUSR1, file=sys.stderr, all_threads=True, chain=False)
 
@@ -67,6 +67,38 @@ def teardown_module():
         wait -= 5.0
 
     dump_threads()
+
+
+class TestSecretManager(SecretRotatorMechanic):
+    def __init__(self):
+        super(SecretRotatorMechanic, self).__init__()
+        self._meta_data = None
+        self._secret = "top secret stuff"
+
+    @property
+    def meta_data(self):
+        return self._meta_data
+
+    def disable_old_secret_versions_material(self,
+                                             rotator,
+                                             change_meta,
+                                             event):
+        self._meta_data = change_meta
+        logging.getLogger(__name__).info(f"Event {event}  {json.dumps(asdict(change_meta))}")
+
+    def create_new_secret(self,
+                          rotator,
+                          change_meta,
+                          num_enabled_secrets):
+        logging.getLogger(__name__).info(f"Creating secret  {json.dumps(asdict(change_meta))}")
+        return self._secret
+
+    def validate_secret(self,
+                        rotator,
+                        change_meta,
+                        num_enabled_secrets):
+        logging.getLogger(__name__).info(f"Validating secret  {json.dumps(asdict(change_meta))}")
+        return None
 
 
 class TestScannerMethods(unittest.TestCase):
@@ -507,11 +539,11 @@ class TestScannerMethods(unittest.TestCase):
         name = self.client.secret_path(self.project_id, "TEST_SECRET_THEN_NOSECRET")
         secret_cache = GCPCachedSecret(name)
         secret = secret_cache.get_secret()
-        self.delete_secret(self.project_id,"TEST_SECRET_THEN_NOSECRET")
+        self.delete_secret(self.project_id, "TEST_SECRET_THEN_NOSECRET")
         secret_cache.invalidate_secret()
         try:
             secret = secret_cache.get_secret()
-            assert 1==0,"Should not get here"
+            assert 1 == 0, "Should not get here"
         except exceptions.NotFound as e:
             pass
 
@@ -523,11 +555,11 @@ class TestScannerMethods(unittest.TestCase):
         name = self.client.secret_path(self.project_id, "TEST_SECRET_THEN_NOSECRET_PAUSE")
         secret_cache = GCPCachedSecret(name)
         secret = secret_cache.get_secret()
-        self.delete_secret(self.project_id,"TEST_SECRET_THEN_NOSECRET_PAUSE")
+        self.delete_secret(self.project_id, "TEST_SECRET_THEN_NOSECRET_PAUSE")
         sleep(65.0)
         try:
             secret = secret_cache.get_secret()
-            assert 1==0,"Should not get here"
+            assert 1 == 0, "Should not get here"
         except exceptions.NotFound as e:
             pass
 
@@ -541,14 +573,48 @@ class TestScannerMethods(unittest.TestCase):
         tic = perf_counter()
         secret = secret_cache.get_secret()
         toc = perf_counter()
-        print(f"Downloaded the initial secret in {toc - tic:0.4f} seconds",file=sys.stderr)
+        print(f"Downloaded the initial secret in {toc - tic:0.4f} seconds", file=sys.stderr)
         tic = perf_counter()
         loopyloop = 5000000
         for i in range(0, loopyloop):
             secret = secret_cache.get_secret()
         toc = perf_counter()
-        print(f"Downloaded the secret {loopyloop:,d} times in {(toc - tic):0.4f} seconds and at an average time of {(toc - tic)/loopyloop:0.10f} seconds",file=sys.stderr)
+        print(
+            f"Downloaded the secret {loopyloop:,d} times in {(toc - tic):0.4f} seconds and at an "
+            f"average time of {(toc - tic) / loopyloop:0.10f} seconds",
+            file=sys.stderr)
 
+    def setup_test_version(self):
+        self.setup_test_happy_path_versions(payload="1",
+                                            secret_id="TEST_SECRET_VERSION")
+
+    def test_test_version(self):
+        name = self.client.secret_path(self.project_id, "TEST_SECRET_VERSION") + "/versions/1"
+        secret_cache = GCPCachedSecret(name)
+        secret = secret_cache.get_secret()
+        assert secret.decode(
+            "utf-8") == "1", "secret not what is expected"
+        self.setup_test_happy_path_versions(payload="2", secret_id="TEST_SECRET_VERSION")
+        secret_cache.invalidate_secret()
+        secret = secret_cache.get_secret()
+        assert secret.decode(
+            "utf-8") == "1", "secret not what is expected"
+        name2 = self.client.secret_path(self.project_id, "TEST_SECRET_VERSION") + "/versions/2"
+        secret_cache2 = GCPCachedSecret(name2)
+        secret2 = secret_cache2.get_secret()
+        assert secret2.decode(
+            "utf-8") == "2", "secret not what is expected"
+        secret_cache1 = GCPCachedSecret(name)
+        secret = secret_cache1.get_secret()
+        assert secret.decode(
+            "utf-8") == "1", "secret not what is expected"
+        self.client.disable_secret_version(
+            name=name2
+        )
+        secret_cache2.invalidate_secret()
+        secret2 = secret_cache2.get_secret()
+        assert secret2.decode(
+            "utf-8") == "1", "secret not what is expected"
 
 
 def main(argv):
