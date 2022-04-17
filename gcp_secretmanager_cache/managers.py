@@ -56,6 +56,11 @@ values exist.  Config is available from either labels beyond these or from a con
                                          # be as well 
                                             
 }
+
+secret_type ENUMS
+
+test-rotation     Used in gcp_secretmanager_cache tests
+google-apikey     Used to indicate that the secret is an api key string
 """
 
 
@@ -155,13 +160,14 @@ class SecretRotator:
             The credentials also need the rights to manage the secret being rotated whatever that
             is.
         """
+        data = json.loads(data.decode("utf-8"))
         if (attributes["eventType"] != "SECRET_ROTATE" or
                 "secretId" not in attributes or
                 "labels" not in data or
                 "secret_type" not in data["labels"]):
             logging.getLogger(__name__).warning(
                 f"Received event that does not meet predicates for secret rotation attributes:"
-                f"{json.dumps(attributes)}, data:{data}")
+                f"{json.dumps(attributes)}, data:{json.dumps(data)}")
             return
 
         config = None
@@ -180,7 +186,7 @@ class SecretRotator:
         change_meta = ChangeSecretMeta(secret_type=data["labels"]["secret_type"],
                                        labels=data["labels"],
                                        config=config,
-                                       secret_resource=json.loads(data),
+                                       secret_resource=data,
                                        secret_id=attributes["secretId"],
                                        rotation_period_seconds=int(
                                            data["rotation"]["rotationPeriod"][:-1]),
@@ -242,7 +248,7 @@ class SecretRotator:
                 to_disable.append(previous)
 
             # if the secret is old enough disable it
-            if response.created_time < min_age:
+            if response.create_time < min_age:
                 previous = response
             else:
                 num_active += 1
@@ -413,11 +419,13 @@ class APIKeyRotator(SecretRotatorMechanic):
         if event != "PreRotate":
             return
 
+        assert change_meta.secret_type == "google-apikey", "Expect secret type to be google-apikey"
+
         credentials = rotator.credentials
         reap_older_than = change_meta.reap_older_than
 
         assert "displayName" in change_meta.config, "APIKEY config must have a template api key " \
-                                                    "whch must have a displayName"
+                                                    "which must have a displayName"
         apikeys_service = build('apikeys', 'v2', credentials=credentials)
         loc_api = apikeys_service.projects().locations().keys()
 
@@ -480,7 +488,8 @@ class APIKeyRotator(SecretRotatorMechanic):
 
         keystring_req = loc_api.getKeyString(name=apikey_resource["name"])
         keystring_object = keystring_req.execute()
-        return keystring_object["keyString"]
+        keystring_object["name"] = apikey_resource["name"]
+        return keystring_object
 
     def validate_secret(self,
                         rotator,
