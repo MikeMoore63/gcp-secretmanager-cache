@@ -12,15 +12,19 @@ import faulthandler
 import gc
 import json
 import logging
+import os
 import signal
 import sys
 import threading
 import unittest
 from dataclasses import asdict
+from datetime import datetime, timedelta
 from time import sleep, perf_counter
+from googleapiclient.discovery import build
 
 import google.auth
 import google_crc32c
+import pytz
 from google.api_core import exceptions
 from google.cloud import secretmanager, secretmanager_v1
 
@@ -45,7 +49,8 @@ def setup_module():
                       "TEST_SECRET_THEN_NOSECRET",
                       "TEST_SECRET_THEN_NOSECRET_PAUSE",
                       "TEST_SECRET_PERF_KEY",
-                      "TEST_SECRET_VERSION"]:
+                      "TEST_SECRET_VERSION",
+                      "TEST_SECRET_ROTATION_FRAMEWORKS"]:
         TestScannerMethods.delete_secret(project_id, secret_id)
     faulthandler.register(signal.SIGUSR1, file=sys.stderr, all_threads=True, chain=False)
 
@@ -69,7 +74,7 @@ def teardown_module():
     dump_threads()
 
 
-class TestSecretManager(SecretRotatorMechanic):
+class TestSecretRotatorMechanic(SecretRotatorMechanic):
     def __init__(self):
         super(SecretRotatorMechanic, self).__init__()
         self._meta_data = None
@@ -616,6 +621,72 @@ class TestScannerMethods(unittest.TestCase):
         assert secret2.decode(
             "utf-8") == "1", "secret not what is expected"
 
+    def test_secret_rotation(self):
+        # Build the parent name from the project.
+        parent = f"projects/{self.project_id}"
+        secret_id = "TEST_SECRET_ROTATION_FRAMEWORKS"
+
+        name = self.client.secret_path(self.project_id, secret_id)
+
+        exists = True
+        try:
+            response = self.client.get_secret(request={"name": name})
+            self.client.delete_secret(
+                request={"name": name}
+            )
+        except exceptions.NotFound as e:
+            exists = False
+
+        topic = secretmanager_v1.Topic()
+        topic.name = os.getenv("TOPIC", "projects/methodical-bee-162815/topics/foo")
+        response = self.client.create_secret(
+            request={
+                "parent": parent,
+                "secret_id": secret_id,
+                "secret": {
+                    "replication":
+                        {"automatic": {}
+                         },
+                    "labels": {
+                        "secret_type": "test-rotation",
+                    },
+                    "rotation": {
+                        "rotation_period": timedelta(seconds=3600),
+                        "next_rotation_time": datetime.utcnow().replace(tzinfo=pytz.UTC) + timedelta(seconds=3600),
+                    },
+                    "topics": [
+                        topic
+                    ]
+                }
+            }
+        )
+
+        rotator_mechanic = TestSecretRotatorMechanic()
+        test_rotator = SecretRotator(rotator_mechanic)
+
+        sm_service = build("secretmanager","v1")
+        secret_req = sm_service.projects().secrets().get(name=response.name)
+        secret_response = secret_req.execute()
+        data = json.dumps(secret_response).encode("utf-8")
+
+        test_rotator.rotate_secret({
+            "eventType": "SECRET_ROTATE",
+            "secretId": response.name
+        }, data)
+
+        secret_cache = GCPCachedSecret(response.name)
+        secret = secret_cache.get_secret()
+        assert "top secret stuff" == secret.decode("utf-8"), "Secret on 1st rotation not what is expected"
+        rotator_mechanic._secret = "top secret stuff2"
+        test_rotator.rotate_secret({
+            "eventType": "SECRET_ROTATE",
+            "secretId": response.name
+        }, data)
+        secret_cache.invalidate_secret()
+        secret = secret_cache.get_secret()
+        assert "top secret stuff2" == secret.decode("utf-8"), "Secret has not been rotated for second rotation"
+
+        return response
 
 def main(argv):
     unittest.main()
