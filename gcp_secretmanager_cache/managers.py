@@ -147,7 +147,7 @@ class SecretRotator:
     def project_id(self):
         if not hasattr(self.ns, "_project_id"):
             credential = self.credentials
-        return self.ns.project_id
+        return self.ns._project_id
 
     def rotate_secret(self, attributes, data):
         """
@@ -330,7 +330,7 @@ class APIKeyRotatorMechanic(SecretRotatorMechanic):
         apikeys_service = build('apikeys', 'v2', credentials=credentials)
         loc_api = apikeys_service.projects().locations().keys()
 
-        parent = f"projects/{rotator.project_id}locations/global"
+        parent = f"projects/{rotator.project_id}/locations/global"
         if "parent" in change_meta.config:
             parent = change_meta.config["parent"]
 
@@ -381,7 +381,7 @@ class APIKeyRotatorMechanic(SecretRotatorMechanic):
         loc_api = apikeys_service.projects().locations().keys()
         ops_api = apikeys_service.operations()
 
-        parent = f"projects/{rotator.project_id}locations/global"
+        parent = f"projects/{rotator.project_id}/locations/global"
         if "parent" in change_meta.config:
             parent = change_meta.config["parent"]
 
@@ -435,10 +435,10 @@ class APIKeyRotator(SecretRotatorMechanic):
         assert change_meta.secret_type == "google-apikey", "Expect secret type to be google-apikey"
 
         credentials = rotator.credentials
-        reap_older_than = change_meta.reap_older_than
 
         assert "displayName" in change_meta.config, "APIKEY config must have a template api key " \
                                                     "which must have a displayName"
+
         apikeys_service = build('apikeys', 'v2', credentials=credentials)
         loc_api = apikeys_service.projects().locations().keys()
 
@@ -450,14 +450,18 @@ class APIKeyRotator(SecretRotatorMechanic):
             parent=parent,
             pageSize=300)
 
-        pspaged_results = []
+        to_delete = []
+        latest = None
         while psrequest is not None:
             api_key_list_resp = psrequest.execute()
             for api_key in api_key_list_resp.get('keys', []):
                 if api_key["displayName"] == change_meta.config["displayName"]:
                     createTime = parser.parse(api_key["createTime"])
-
-                    logging.getLogger(__name__).info(f"Found apikey {json.dumps(api_key)}")
+                    if not latest or createTime > parser.parse(latest["createTime"]):
+                        latest = api_key
+                    if createTime < change_meta.delete_oldest_time:
+                        to_delete.append(api_key)
+                        logging.getLogger(__name__).info(f"Found apikey {json.dumps(api_key)}")
 
             if "nextPageToken" in api_key_list_resp:
                 psrequest = loc_api.list(
@@ -467,6 +471,14 @@ class APIKeyRotator(SecretRotatorMechanic):
             else:
                 psrequest = None
 
+        for delete_key in to_delete:
+            if delete_key["createTime"] != latest["createTime"]:
+                del_req = loc_api.delete(
+                    name=delete_key["name"]
+                )
+                # returns op but we won't wait
+                del_req.execute()
+
     def create_new_secret(self,
                           rotator,
                           change_meta,
@@ -475,7 +487,7 @@ class APIKeyRotator(SecretRotatorMechanic):
         loc_api = apikeys_service.projects().locations().keys()
         ops_api = apikeys_service.operations()
 
-        parent = f"projects/{rotator.project_id}locations/global"
+        parent = f"projects/{rotator.project_id}/locations/global"
         if "parent" in change_meta.config:
             parent = change_meta.config["parent"]
 
