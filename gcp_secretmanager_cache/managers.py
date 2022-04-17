@@ -75,9 +75,14 @@ class ChangeSecretMeta:
     ttl: int
 
     @property
-    def reap_oldest_time(self):
+    def disable_oldest_time(self):
         return datetime.utcnow().replace(tzinfo=pytz.UTC) - timedelta(
             seconds=int(self.rotation_period_seconds * 1.5))
+
+    @property
+    def delete_oldest_time(self):
+        return datetime.utcnow().replace(tzinfo=pytz.UTC) - timedelta(
+            seconds=int(self.rotation_period_seconds * 5))
 
 
 class SecretRotatorMechanic(ABC):
@@ -228,14 +233,14 @@ class SecretRotator:
 
     def disable_old_secret_versions(self,
                                     change_meta):
-        min_age = change_meta.reap_oldest_time
+        min_age = change_meta.disable_oldest_time
 
         request = secretmanager_v1.ListSecretVersionsRequest(
-            parent=change_meta.secret_id,
-            filter="state=ENABLED"
+            parent=change_meta.secret_id
         )
         page_result = self._client.list_secret_versions(request=request)
         to_disable = []
+        to_delete = []
         previous = None
 
         # Assume 1
@@ -244,8 +249,11 @@ class SecretRotator:
         for num_iter, response in enumerate(sorted(page_result, key=lambda d: d.create_time)):
             # if set was the previous one
             # we do this to avoid disabling th elatest
-            if previous:
+            if previous and response.state == "ENABLED":
                 to_disable.append(previous)
+
+            if response.state == "DISABLED" and response.create_time < change_meta.delete_oldest_time:
+                to_delete.append(response)
 
             # if the secret is old enough disable it
             if response.create_time < min_age:
@@ -261,6 +269,11 @@ class SecretRotator:
         for disable in to_disable:
             self._client.disable_secret_version(
                 name=disable.name
+            )
+
+        for delete in to_delete:
+            self._client.delete_secret(
+                name=delete.name
             )
 
         return num_active
