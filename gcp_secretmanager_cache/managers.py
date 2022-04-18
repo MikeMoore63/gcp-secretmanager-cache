@@ -245,7 +245,8 @@ class SecretRotator:
         min_age = change_meta.disable_oldest_time
 
         request = secretmanager_v1.ListSecretVersionsRequest(
-            parent=change_meta.secret_id
+            parent=change_meta.secret_id,
+            filter="state!=DESTROYED"
         )
         page_result = self._client.list_secret_versions(request=request)
         to_disable = []
@@ -628,11 +629,11 @@ class SAKeyRotator(SecretRotatorMechanic):
         return None
 
 
-class DBApiSingleUserPasswordRotatoConstants:
-    PG="ALTER USER {username} WITH PASSWORD '{newpassword}';"
-    MYSQL="SET PASSWORD = PASSWORD('{newpassword}');"
-    ORACLE="ALTER USER {username} IDENTIFIED BY {newpassword};"
-    SYBSASE="sp_password {password}, {newpassword}"
+class DBApiSingleUserPasswordRotatorConstants:
+    PG="ALTER USER %{user} WITH PASSWORD '%{newpassword}';"
+    MYSQL="SET PASSWORD = PASSWORD('%{newpassword}');"
+    ORACLE="ALTER USER %{user} IDENTIFIED BY %{newpassword};"
+    SYBSASE="sp_password %{password}, %{newpassword}"
 
 class DBApiSingleUserPasswordRotator(SecretRotatorMechanic):
     """
@@ -647,20 +648,27 @@ class DBApiSingleUserPasswordRotator(SecretRotatorMechanic):
     The constructor is passed in a db-api connection.
     and a statement which can have parameters
     {
-        "username": "string",
+        "user": "string",
         "password": "string", # starting password
         "newpassword": "string" # the new password
     }
     """
 
-    def __init__(self, db, statement, exclude_characters=None, password_length=16):
-        super(SecretRotatorMechanic).__init__(self)
+    def __init__(self, db, statement, exclude_characters=None, password_length=16,usernamekey=None, passwordkey=None):
+        super(DBApiSingleUserPasswordRotator,self).__init__()
+        if not usernamekey:
+            usernamekey = "user"
+        if not passwordkey:
+            passwordkey = "password"
+
         if not exclude_characters:
             exclude_characters=" ,'\""
         self._db = db
         self._statement = statement
         self._exclude_charaters = exclude_characters
         self._password_length = password_length
+        self._usernamekey = usernamekey
+        self._passwordkey = passwordkey
 
     def _generate_password(self):
         letters = string.ascii_letters + string.digits + string.punctuation
@@ -705,18 +713,22 @@ class DBApiSingleUserPasswordRotator(SecretRotatorMechanic):
         except NoActiveSecretVersion as e:
             secret = change_meta.config["initial_secret"]
 
+        secret_modified ={}
+        secret_modified[self._usernamekey]=secret["user"]
+        secret_modified[self._passwordkey] = secret["password"]
+
         # config json structure has properties to allow connection
         # these are merged with secret to create connection properties
-        server_connection_properties = {**change_meta.config["server_properties"], **secret}
+        server_connection_properties = {**change_meta.config["server_properties"], **secret_modified}
 
         # we generate a new password
         new_password = self._generate_password()
 
-        with self.db.connect(**server_connection) as conn:
+        with self.db.connect(**server_connection_properties) as conn:
             with conn.cursor() as curs:
                 curs.execute(self.statement, {**server_connection_properties, **{"newpassword": new_password}})
 
-        new_secret = {"username": secret["username"], "password": new_password}
+        new_secret = {"user": secret["user"], "password": new_password}
         return new_secret
 
     def validate_secret(self,

@@ -17,6 +17,7 @@ import signal
 import sys
 import threading
 import unittest
+import psycopg2
 from dataclasses import asdict
 from datetime import datetime, timedelta
 from time import sleep, perf_counter
@@ -865,6 +866,100 @@ class TestScannerMethods(unittest.TestCase):
         secret2 = json.loads(secret_cache.get_secret().decode("utf-8"))
         logging.getLogger(__name__).info(f"API key secret 2 is {json.dumps(secret2)}")
         assert secret["privateKeyData"] != secret2["privateKeyData"], "Initial key and second key are not the same"
+
+    def test_postgres_db_su_rotator(self):
+        # Build the parent name from the project.
+        parent = f"projects/{self.project_id}"
+        secret_id = "TEST_DBPGSUKEY_ROTATION_FRAMEWORKS"
+
+        name = self.client.secret_path(self.project_id, secret_id)
+
+        exists = True
+        try:
+            response = self.client.get_secret(request={"name": name})
+        except exceptions.NotFound as e:
+            exists = False
+
+        topic = secretmanager_v1.Topic()
+        topic.name = os.getenv("TOPIC", "projects/methodical-bee-162815/topics/foo")
+        client = storage.Client()
+        bucket_name = os.getenv("BUCKET", "methodical-bee-162815-secret")
+        try:
+            bucket = client.get_bucket(bucket_name)
+        except exceptions.NotFound as e:
+            bucket = client.create_bucket(
+                bucket_name
+            )
+
+        blob = bucket.blob("test-dbpgsukey")
+
+        try:
+            blob.delete()
+        except exceptions.NotFound as e:
+            pass
+
+        blob.upload_from_string(json.dumps({
+            "server_properties": {"host": "127.0.0.1",
+                                  "port": 5432,
+                                  "dbname": "test"
+                                  },
+            "initial_secret": {
+                "user": "mike",
+                "password": os.environ["DBPGSUPASSWORD"]
+            }
+        }).encode("utf-8"))
+
+        if not exists:
+            response = self.client.create_secret(
+                request={
+                    "parent": parent,
+                    "secret_id": secret_id,
+                    "secret": {
+                        "replication":
+                            {"automatic": {}
+                             },
+                        "labels": {
+                            "secret_type": "database-api",
+                            "config_bucket": bucket_name,
+                            "config_object": "test-dbpgsukey"
+                        },
+                        "rotation": {
+                            "rotation_period": timedelta(seconds=3600),
+                            "next_rotation_time": datetime.utcnow().replace(
+                                tzinfo=pytz.UTC) + timedelta(seconds=3600),
+                        },
+                        "topics": [
+                            topic
+                        ]
+                    }
+                }
+            )
+
+        sm_service = build("secretmanager", "v1")
+        secret_req = sm_service.projects().secrets().get(name=name)
+        secret_response = secret_req.execute()
+        data = json.dumps(secret_response).encode("utf-8")
+
+        rotator_mechanic = DBApiSingleUserPasswordRotator(db=psycopg2,
+                                                          statement=DBApiSingleUserPasswordRotatorConstants.PG)
+        test_rotator = SecretRotator(rotator_mechanic)
+        test_rotator.rotate_secret({
+            "eventType": "SECRET_ROTATE",
+            "secretId": name
+        }, data)
+
+        secret_cache = GCPCachedSecret(name)
+        secret = json.loads(secret_cache.get_secret().decode("utf-8"))
+        logging.getLogger(__name__).info(f"API key secret 1 is {json.dumps(secret)}")
+        test_rotator.rotate_secret({
+            "eventType": "SECRET_ROTATE",
+            "secretId": name
+        }, data)
+        secret_cache.invalidate_secret()
+        secret2 = json.loads(secret_cache.get_secret().decode("utf-8"))
+        logging.getLogger(__name__).info(f"API key secret 2 is {json.dumps(secret2)}")
+        assert secret["password"] != secret2[
+            "password"], "Initial key and second key are not the same"
 
 def main(argv):
     unittest.main()
