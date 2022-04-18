@@ -442,7 +442,7 @@ class APIKeyRotator(SecretRotatorMechanic):
         apikeys_service = build('apikeys', 'v2', credentials=credentials)
         loc_api = apikeys_service.projects().locations().keys()
 
-        parent = f"projects/{rotator.project_id}locations/global"
+        parent = f"projects/{rotator.project_id}/locations/global"
         if "parent" in change_meta.config:
             parent = change_meta.config["parent"]
 
@@ -483,7 +483,7 @@ class APIKeyRotator(SecretRotatorMechanic):
                           rotator,
                           change_meta,
                           num_enabled_secrets):
-        apikeys_service = build('apikeys', 'v2', credentials=change_meta.credential)
+        apikeys_service = build('apikeys', 'v2', credentials=rotator.credentials)
         loc_api = apikeys_service.projects().locations().keys()
         ops_api = apikeys_service.operations()
 
