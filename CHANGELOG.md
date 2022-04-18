@@ -1,3 +1,6 @@
+### version 0.2.2
+* Added tests for database password rotation
+* Fixed bugs found in testing
 ### version 0.2.1
 * Fixed bugs in rotation frameworks
 * Added basis of DBApiSingleUserPasswordRotator (alpha)
