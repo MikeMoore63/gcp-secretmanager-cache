@@ -1,3 +1,6 @@
+### version 0.2.1
+* Fixed bugs in rotation frameworks
+* Added basis of DBApiSingleUserPasswordRotator (alpha)
 ### version 0.2.0
 * Added secret rotator framework and tests
 * Added concrete implementation of apikey rotator and service account key rotator

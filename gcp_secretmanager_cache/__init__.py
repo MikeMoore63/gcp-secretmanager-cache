@@ -18,7 +18,9 @@ from gcp_secretmanager_cache.managers import SecretRotator, \
     SecretRotatorMechanic, \
     ChangeSecretMeta, \
     APIKeyRotator, \
-    SAKeyRotator
+    SAKeyRotator, \
+    DBApiSingleUserPasswordRotatoConstants, \
+    DBApiSingleUserPasswordRotator
 from ._version import __version__
 
 __all__ = ["__version__",
@@ -33,4 +35,6 @@ __all__ = ["__version__",
            "NewSecretCreateError",
            "SecretRotatorError",
            "APIKeyRotator",
-           "SAKeyRotator"]
+           "SAKeyRotator",
+           "DBApiSingleUserPasswordRotatoConstants",
+           "DBApiSingleUserPasswordRotator"]

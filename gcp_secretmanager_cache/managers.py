@@ -7,6 +7,8 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 
+import random
+import string
 import google.auth
 import google_crc32c
 import pytz
@@ -15,7 +17,9 @@ from dateutil import parser
 from google.cloud import secretmanager, secretmanager_v1
 from google.cloud import storage
 from googleapiclient.discovery import build
+from google.api_core import exceptions
 from gcp_secretmanager_cache.exceptions import NewSecretCreateError
+from .cache_secret import GCPCachedSecret, NoActiveSecretVersion
 
 """
 Some frameworks for handling secrets.
@@ -87,7 +91,7 @@ class ChangeSecretMeta:
 
     @property
     def project_id(self):
-        return re.search(r"projects/([^/]+)",self.secret_id).group(1)
+        return re.search(r"projects/([^/]+)", self.secret_id).group(1)
 
 
 class SecretRotatorMechanic(ABC):
@@ -254,10 +258,11 @@ class SecretRotator:
         for num_iter, response in enumerate(sorted(page_result, key=lambda d: d.create_time)):
             # if set was the previous one
             # we do this to avoid disabling th elatest
-            if previous and response.state == "ENABLED":
+            if previous and response.state == secretmanager_v1.SecretVersion.State.ENABLED:
                 to_disable.append(previous)
 
-            if response.state == "DISABLED" and response.create_time < change_meta.delete_oldest_time:
+            if response.state == secretmanager_v1.SecretVersion.State.DISABLED and response.create_time < \
+                    change_meta.delete_oldest_time:
                 to_delete.append(response)
 
             # if the secret is old enough disable it
@@ -277,7 +282,7 @@ class SecretRotator:
             )
 
         for delete in to_delete:
-            self._client.delete_secret(
+            self._client.destroy_secret_version(
                 name=delete.name
             )
 
@@ -527,6 +532,7 @@ class APIKeyRotator(SecretRotatorMechanic):
                         num_enabled_secrets):
         return None
 
+
 class SAKeyRotator(SecretRotatorMechanic):
     """
     Class to provide mechanic of rotating an api key
@@ -543,17 +549,20 @@ class SAKeyRotator(SecretRotatorMechanic):
         if event != "PreRotate":
             return
 
-        assert change_meta.secret_type == "google-serviceaccount", "Expect secret type to be google-serviceAccount"
+        assert change_meta.secret_type == "google-serviceaccount", "Expect secret type to be " \
+                                                                   "google-serviceAccount"
 
         credentials = rotator.credentials
 
-        assert "name" in change_meta.config, "Service Account key rotator config MUST have a name key"
+        assert "name" in change_meta.config, "Service Account key rotator config MUST have a name" \
+                                             " key"
 
         iam_service = build('iam', 'v1', credentials=credentials)
         loc_api = iam_service.projects().serviceAccounts().keys()
 
         psrequest = loc_api.list(
-            name=change_meta.config["name"])
+            name=change_meta.config["name"],
+            keyTypes="USER_MANAGED")
 
         to_disable = []
         to_delete = []
@@ -564,7 +573,7 @@ class SAKeyRotator(SecretRotatorMechanic):
             createTime = parser.parse(api_key["validAfterTime"])
             if not latest or createTime > parser.parse(latest["validAfterTime"]):
                 latest = api_key
-            if createTime < change_meta.disable_oldest_time:
+            if createTime < change_meta.disable_oldest_time and ("disabled" not in api_key or not api_key["disabled"]):
                 to_disable.append(api_key)
                 logging.getLogger(__name__).info(
                     f"Found sa key to disable {json.dumps(api_key)}")
@@ -572,7 +581,6 @@ class SAKeyRotator(SecretRotatorMechanic):
             if createTime < change_meta.delete_oldest_time:
                 to_delete.append(api_key)
                 logging.getLogger(__name__).info(f"Found sa key to delete {json.dumps(api_key)}")
-
 
         for disable_key in to_disable:
             if disable_key["validAfterTime"] != latest["validAfterTime"]:
@@ -609,9 +617,107 @@ class SAKeyRotator(SecretRotatorMechanic):
         iam_service = build('iam', 'v1', credentials=credentials)
         loc_api = iam_service.projects().serviceAccounts().keys()
         sakey_req = loc_api.create(name=change_meta.config["name"],
-                       body=body)
+                                   body=body)
         sakey_resp = sakey_req.execute()
         return sakey_resp
+
+    def validate_secret(self,
+                        rotator,
+                        change_meta,
+                        num_enabled_secrets):
+        return None
+
+
+class DBApiSingleUserPasswordRotatoConstants:
+    PG="ALTER USER {username} WITH PASSWORD '{newpassword}';"
+    MYSQL="SET PASSWORD = PASSWORD('{newpassword}');"
+    ORACLE="ALTER USER {username} IDENTIFIED BY {newpassword};"
+    SYBSASE="sp_password {password}, {newpassword}"
+
+class DBApiSingleUserPasswordRotator(SecretRotatorMechanic):
+    """
+    Class to provide mechanic of rotating a password for a user.
+    Requires access to starting secret or an initial secret.
+    Assumes server properties for username and password are
+    {
+        "username":"string",
+        "password": "string"
+    }
+
+    The constructor is passed in a db-api connection.
+    and a statement which can have parameters
+    {
+        "username": "string",
+        "password": "string", # starting password
+        "newpassword": "string" # the new password
+    }
+    """
+
+    def __init__(self, db, statement, exclude_characters=None, password_length=16):
+        super(SecretRotatorMechanic).__init__(self)
+        if not exclude_characters:
+            exclude_characters=" ,'\""
+        self._db = db
+        self._statement = statement
+        self._exclude_charaters = exclude_characters
+        self._password_length = password_length
+
+    def _generate_password(self):
+        letters = string.ascii_letters + string.digits + string.punctuation
+        password = ""
+        while len(password) < self._password_length:
+            candidate = random.choice(letters)
+            if not self._exclude_charaters or candidate not in self._exclude_charaters:
+                password = password + candidate
+        return password
+
+    @property
+    def db(self):
+        return self._db
+
+    @property
+    def statement(self):
+        return self._statement
+
+    def disable_old_secret_versions_material(self,
+                                             rotator,
+                                             change_meta,
+                                             event):
+
+        if event != "PreRotate":
+            return
+
+        assert change_meta.secret_type == "database-api", "Expect database api"
+
+    def create_new_secret(self,
+                          rotator,
+                          change_meta,
+                          num_enabled_secrets):
+        assert change_meta.secret_type == "database-api", "Expect secret type to be " \
+                                                          "database-api"
+
+        # Get the existing secret if it has a version
+        secret_cache = GCPCachedSecret(change_meta.secret_id)
+
+        try:
+            secret = json.loads(secret_cache.get_secret().decode("utf-8"))
+        # if we get no active version we use the initial secret
+        except NoActiveSecretVersion as e:
+            secret = change_meta.config["initial_secret"]
+
+        # config json structure has properties to allow connection
+        # these are merged with secret to create connection properties
+        server_connection_properties = {**change_meta.config["server_properties"], **secret}
+
+        # we generate a new password
+        new_password = self._generate_password()
+
+        with self.db.connect(**server_connection) as conn:
+            with conn.cursor() as curs:
+                curs.execute(self.statement, {**server_connection_properties, **{"newpassword": new_password}})
+
+        new_secret = {"username": secret["username"], "password": new_password}
+        return new_secret
 
     def validate_secret(self,
                         rotator,
