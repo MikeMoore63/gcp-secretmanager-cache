@@ -771,14 +771,15 @@ class TestScannerMethods(unittest.TestCase):
 
         secret_cache = GCPCachedSecret(name)
         secret = json.loads(secret_cache.get_secret().decode("utf-8"))
-        logging.getLogger(__name__).info(f"API key secret is {json.dumps(secret)}")
+        logging.getLogger(__name__).info(f"API key secret 1 is {json.dumps(secret)}")
         test_rotator.rotate_secret({
             "eventType": "SECRET_ROTATE",
             "secretId": name
         }, data)
         secret_cache.invalidate_secret()
-        secret = json.loads(secret_cache.get_secret().decode("utf-8"))
-        logging.getLogger(__name__).info(f"API key secret is {json.dumps(secret)}")
+        secret2 = json.loads(secret_cache.get_secret().decode("utf-8"))
+        logging.getLogger(__name__).info(f"API key secret 2 is {json.dumps(secret2)}")
+        assert secret["keyString"] != secret2["keyString"], "Initial key and second key are not the same"
 
 def main(argv):
     unittest.main()
