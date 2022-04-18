@@ -781,6 +781,91 @@ class TestScannerMethods(unittest.TestCase):
         logging.getLogger(__name__).info(f"API key secret 2 is {json.dumps(secret2)}")
         assert secret["keyString"] != secret2["keyString"], "Initial key and second key are not the same"
 
+    def test_sa_key_rotation(self):
+        # Build the parent name from the project.
+        parent = f"projects/{self.project_id}"
+        secret_id = "TEST_SAKEY_ROTATION_FRAMEWORKS"
+
+        name = self.client.secret_path(self.project_id, secret_id)
+
+        exists = True
+        try:
+            response = self.client.get_secret(request={"name": name})
+        except exceptions.NotFound as e:
+            exists = False
+
+        topic = secretmanager_v1.Topic()
+        topic.name = os.getenv("TOPIC", "projects/methodical-bee-162815/topics/foo")
+        client = storage.Client()
+        bucket_name = os.getenv("BUCKET", "methodical-bee-162815-secret")
+        try:
+            bucket = client.get_bucket(bucket_name)
+        except exceptions.NotFound as e:
+            bucket = client.create_bucket(
+                bucket_name
+            )
+
+        blob = bucket.blob("test-sakey")
+
+        try:
+            blob.delete()
+        except exceptions.NotFound as e:
+            pass
+
+        blob.upload_from_string(json.dumps({
+            "name": "projects/methodical-bee-162815/serviceAccounts/test-rotate@methodical-bee-162815.iam.gserviceaccount.com"
+        }).encode("utf-8"))
+
+        if not exists:
+            response = self.client.create_secret(
+                request={
+                    "parent": parent,
+                    "secret_id": secret_id,
+                    "secret": {
+                        "replication":
+                            {"automatic": {}
+                             },
+                        "labels": {
+                            "secret_type": "google-serviceaccount",
+                            "config_bucket": bucket_name,
+                            "config_object": "test-sakey"
+                        },
+                        "rotation": {
+                            "rotation_period": timedelta(seconds=3600),
+                            "next_rotation_time": datetime.utcnow().replace(
+                                tzinfo=pytz.UTC) + timedelta(seconds=3600),
+                        },
+                        "topics": [
+                            topic
+                        ]
+                    }
+                }
+            )
+
+        sm_service = build("secretmanager", "v1")
+        secret_req = sm_service.projects().secrets().get(name=name)
+        secret_response = secret_req.execute()
+        data = json.dumps(secret_response).encode("utf-8")
+
+        rotator_mechanic = SAKeyRotator()
+        test_rotator = SecretRotator(rotator_mechanic)
+        test_rotator.rotate_secret({
+            "eventType": "SECRET_ROTATE",
+            "secretId": name
+        }, data)
+
+        secret_cache = GCPCachedSecret(name)
+        secret = json.loads(secret_cache.get_secret().decode("utf-8"))
+        logging.getLogger(__name__).info(f"API key secret 1 is {json.dumps(secret)}")
+        test_rotator.rotate_secret({
+            "eventType": "SECRET_ROTATE",
+            "secretId": name
+        }, data)
+        secret_cache.invalidate_secret()
+        secret2 = json.loads(secret_cache.get_secret().decode("utf-8"))
+        logging.getLogger(__name__).info(f"API key secret 2 is {json.dumps(secret2)}")
+        assert secret["privateKeyData"] != secret2["privateKeyData"], "Initial key and second key are not the same"
+
 def main(argv):
     unittest.main()
 

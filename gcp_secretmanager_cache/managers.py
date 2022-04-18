@@ -10,6 +10,7 @@ from datetime import datetime, timedelta
 import google.auth
 import google_crc32c
 import pytz
+import re
 from dateutil import parser
 from google.cloud import secretmanager, secretmanager_v1
 from google.cloud import storage
@@ -83,6 +84,10 @@ class ChangeSecretMeta:
     def delete_oldest_time(self):
         return datetime.utcnow().replace(tzinfo=pytz.UTC) - timedelta(
             seconds=int(self.rotation_period_seconds * 5))
+
+    @property
+    def project_id(self):
+        return re.search(r"projects/([^/]+)",self.secret_id).group(1)
 
 
 class SecretRotatorMechanic(ABC):
@@ -330,7 +335,7 @@ class APIKeyRotatorMechanic(SecretRotatorMechanic):
         apikeys_service = build('apikeys', 'v2', credentials=credentials)
         loc_api = apikeys_service.projects().locations().keys()
 
-        parent = f"projects/{rotator.project_id}/locations/global"
+        parent = f"projects/{change_meta.project_id}/locations/global"
         if "parent" in change_meta.config:
             parent = change_meta.config["parent"]
 
@@ -381,7 +386,7 @@ class APIKeyRotatorMechanic(SecretRotatorMechanic):
         loc_api = apikeys_service.projects().locations().keys()
         ops_api = apikeys_service.operations()
 
-        parent = f"projects/{rotator.project_id}/locations/global"
+        parent = f"projects/{change_meta.project_id}/locations/global"
         if "parent" in change_meta.config:
             parent = change_meta.config["parent"]
 
@@ -442,7 +447,7 @@ class APIKeyRotator(SecretRotatorMechanic):
         apikeys_service = build('apikeys', 'v2', credentials=credentials)
         loc_api = apikeys_service.projects().locations().keys()
 
-        parent = f"projects/{rotator.project_id}/locations/global"
+        parent = f"projects/{change_meta.project_id}/locations/global"
         if "parent" in change_meta.config:
             parent = change_meta.config["parent"]
 
@@ -487,7 +492,7 @@ class APIKeyRotator(SecretRotatorMechanic):
         loc_api = apikeys_service.projects().locations().keys()
         ops_api = apikeys_service.operations()
 
-        parent = f"projects/{rotator.project_id}/locations/global"
+        parent = f"projects/{change_meta.project_id}/locations/global"
         if "parent" in change_meta.config:
             parent = change_meta.config["parent"]
 
@@ -515,6 +520,98 @@ class APIKeyRotator(SecretRotatorMechanic):
         keystring_object = keystring_req.execute()
         keystring_object["name"] = apikey_resource["name"]
         return keystring_object
+
+    def validate_secret(self,
+                        rotator,
+                        change_meta,
+                        num_enabled_secrets):
+        return None
+
+class SAKeyRotator(SecretRotatorMechanic):
+    """
+    Class to provide mechanic of rotating an api key
+    Assumes the config json doc has the required attributes.
+    APikeys can have same name so we use the displayName to identify
+    previous versions
+    """
+
+    def disable_old_secret_versions_material(self,
+                                             rotator,
+                                             change_meta,
+                                             event):
+
+        if event != "PreRotate":
+            return
+
+        assert change_meta.secret_type == "google-serviceaccount", "Expect secret type to be google-serviceAccount"
+
+        credentials = rotator.credentials
+
+        assert "name" in change_meta.config, "Service Account key rotator config MUST have a name key"
+
+        iam_service = build('iam', 'v1', credentials=credentials)
+        loc_api = iam_service.projects().serviceAccounts().keys()
+
+        psrequest = loc_api.list(
+            name=change_meta.config["name"])
+
+        to_disable = []
+        to_delete = []
+        latest = None
+
+        api_key_list_resp = psrequest.execute()
+        for api_key in api_key_list_resp.get('keys', []):
+            createTime = parser.parse(api_key["validAfterTime"])
+            if not latest or createTime > parser.parse(latest["validAfterTime"]):
+                latest = api_key
+            if createTime < change_meta.disable_oldest_time:
+                to_disable.append(api_key)
+                logging.getLogger(__name__).info(
+                    f"Found sa key to disable {json.dumps(api_key)}")
+
+            if createTime < change_meta.delete_oldest_time:
+                to_delete.append(api_key)
+                logging.getLogger(__name__).info(f"Found sa key to delete {json.dumps(api_key)}")
+
+
+        for disable_key in to_disable:
+            if disable_key["validAfterTime"] != latest["validAfterTime"]:
+                disable_req = loc_api.disable(
+                    name=disable_key["name"]
+                )
+                # returns op but we won't wait
+                disable_req.execute()
+
+        for delete_key in to_delete:
+            if delete_key["validAfterTime"] != latest["validAfterTime"]:
+                del_req = loc_api.delete(
+                    name=delete_key["name"]
+                )
+                # returns op but we won't wait
+                del_req.execute()
+
+    def create_new_secret(self,
+                          rotator,
+                          change_meta,
+                          num_enabled_secrets):
+        assert change_meta.secret_type == "google-serviceaccount", "Expect secret type to be " \
+                                                                   "google-serviceAccount"
+
+        credentials = rotator.credentials
+
+        assert "name" in change_meta.config, "Service Account key rotator config MUST have a name" \
+                                             " key"
+
+        body = {
+            "privateKeyType": "TYPE_GOOGLE_CREDENTIALS_FILE",
+            "keyAlgorithm": "KEY_ALG_RSA_2048"
+        }
+        iam_service = build('iam', 'v1', credentials=credentials)
+        loc_api = iam_service.projects().serviceAccounts().keys()
+        sakey_req = loc_api.create(name=change_meta.config["name"],
+                       body=body)
+        sakey_resp = sakey_req.execute()
+        return sakey_resp
 
     def validate_secret(self,
                         rotator,

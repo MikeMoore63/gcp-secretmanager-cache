@@ -17,7 +17,8 @@ from gcp_secretmanager_cache.decorators import InjectKeywordedSecretString, Inje
 from gcp_secretmanager_cache.managers import SecretRotator, \
     SecretRotatorMechanic, \
     ChangeSecretMeta, \
-    APIKeyRotator
+    APIKeyRotator, \
+    SAKeyRotator
 from ._version import __version__
 
 __all__ = ["__version__",
@@ -31,4 +32,5 @@ __all__ = ["__version__",
            "ChangeSecretMeta",
            "NewSecretCreateError",
            "SecretRotatorError",
-           "APIKeyRotator"]
+           "APIKeyRotator",
+           "SAKeyRotator"]
