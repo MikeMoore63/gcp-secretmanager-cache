@@ -1,3 +1,6 @@
+### version 0.2.0
+* Added secret rotator framework and tests
+* Added concrete implementation of apikey rotator and service account key rotator
 ### version 0.1.3, 0.1.4 and 0.1.5
 * Improved README
 ### version 0.1.2

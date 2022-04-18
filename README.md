@@ -71,3 +71,101 @@ def function_to_be_decorated(arg1, arg2, arg3):
     # arg1 contains the cache lookup result of the 'mysimplesecret' secret.
     # arg2 and arg3, in this example, must still be passed when calling function_to_be_decorated().
 ```
+The library also provides mechanisms to handle secret rotation based upon pubsub events triggered by secret rotation events.
+It provides a base framework that orchestrates (SecretRotator class) the creation of new secrets and manages the mechanic of enabling an disabling and deleting versions in secret manager. For each type of secret a "mechanic" (a sub class of SecretRotatorMechanic) for managing the secret material needs to be provided.
+
+The library offers an abstract mechanic for adding as basis of new concrete secret management mechanics. Plus concrete implemntations. See table below for details of concrete implementations. The mechanics are designed to be configurable by using a json structured file in cloud storage for example a database password mechanic might need to know the username, the server address and port of the server. Or an apikey need to be able to have different annotations or restrictions. This mechanic is implemented using specific labels on the secrets. The config "object" is then used in the mechanic process.
+
+The labels that MUST be attached for this to happen are illustrated below. NB these are restricted by label limitations of charater support and length;
+```json
+{
+  "secret_type": "enum (Secret Type)",
+  "config_bucket": "string", # The bucket that the confg blob is stored in
+  "config_object": "string"  # The object name in the bucket holding json utf-8 encoded config        
+}
+```
+The concrete implemntations of secret rotators are documented below. For these to work the approriate roles MUST be granted to the process to be able to do its job.
+
+|secret_type|Mechanic Class| What it manages the secret of                                         |
+|-----------|--------------|-----------------------------------------------------------------------|
+|google-apikey|APIKeyRotator| Manages creation of new google api keys                               |
+|google-serviceaccount|SAKeyRotator| Manages creation of service account keys for a google servce accounts |
+
+Example code for the api key rotator below.
+
+Create a config blob
+```python
+import json
+from google.cloud import storage
+
+client = storage.Client()
+bucket = client.get_bucket("secret_config_bucket")
+blob = bucket.blob("apikey-template")
+
+# the api key rotator MUST have displayName as it uses that to link related apikeys
+blob.upload_from_string(json.dumps({
+            "displayName": "A test api key to test rotation",
+            "restrictions": {
+                "apiTargets": [
+                    {
+                        "service": "datastudio.googleapis.com"
+                    }
+                ]
+            }
+        }).encode("utf-8"))
+```
+
+Create a secret that is for apikeys that has a rotation policy. the topics and subscriptions for the rotation MUST be also setup as normal for pubsub.
+
+```python
+import pytz
+from datetime import datetime, timedelta
+from google.cloud import secretmanager, secretmanager_v1
+client = secretmanager.SecretManagerServiceClient()
+parent = "projects/demo-secret-rotation"
+secret_id = "DEMO_APIKEY_ROTATION_FRAMEWORKS"
+
+# create rotating secrets with labels required for rotator i.e. secret_type
+# and config_bucket and config_object pointing at template api key
+client.create_secret(
+    request={
+        "parent": parent,
+        "secret_id": secret_id,
+        "secret": {
+            "replication":
+                {"automatic": {}
+                 },
+            "labels": {
+                "secret_type": "google-apikey",
+                "config_bucket": "secret_config_bucket",
+                "config_object": "apikey-template"
+            },
+            "rotation": {
+                "rotation_period": timedelta(seconds=3600),
+                "next_rotation_time": datetime.utcnow().replace(
+                    tzinfo=pytz.UTC) + timedelta(seconds=3600),
+            },
+            "topics": [
+                secretmanager_v1.Topic(name="projects/demo-secret-rotation/topics/secretrotate")
+            ]
+        }
+    }
+)
+```
+Then to implement secret rotation for the apikey in a python program that processes the event could be cloud function or cloud run or any other context for execution of pubsub.
+```python
+from gcp_secretmanager_cache import APIKeyRotator, SecretRotator
+
+# create the rotator mechanism passing in constructor which mechanic to use
+rotator_mechanism = SecretRotator(APIKeyRotator())
+...
+
+# in the call back o fthe pubsub event call the rotator mechanic
+# This leverages the data passed in a secret rotation event
+# https://cloud.google.com/secret-manager/docs/event-notifications
+rotator_mechanism.rotate_secret(message_attributes, data)
+```
+
+
+
+
