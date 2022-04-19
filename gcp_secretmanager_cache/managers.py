@@ -630,10 +630,10 @@ class SAKeyRotator(SecretRotatorMechanic):
 
 
 class DBApiSingleUserPasswordRotatorConstants:
-    PG="ALTER USER %{user} WITH PASSWORD '%{newpassword}';"
-    MYSQL="SET PASSWORD = PASSWORD('%{newpassword}');"
-    ORACLE="ALTER USER %{user} IDENTIFIED BY %{newpassword};"
-    SYBSASE="sp_password %{password}, %{newpassword}"
+    PG="ALTER USER {user} WITH PASSWORD '{newpassword}';"
+    MYSQL="SET PASSWORD = PASSWORD('{newpassword}');"
+    ORACLE="ALTER USER {user} IDENTIFIED BY {newpassword};"
+    SYBSASE="sp_password {password}, {newpassword}"
 
 class DBApiSingleUserPasswordRotator(SecretRotatorMechanic):
     """
@@ -726,7 +726,7 @@ class DBApiSingleUserPasswordRotator(SecretRotatorMechanic):
 
         with self.db.connect(**server_connection_properties) as conn:
             with conn.cursor() as curs:
-                curs.execute(self.statement, {**server_connection_properties, **{"newpassword": new_password}})
+                curs.execute(self.statement.format_map({**server_connection_properties, **{"newpassword": new_password}}))
 
         new_secret = {"user": secret["user"], "password": new_password}
         return new_secret
