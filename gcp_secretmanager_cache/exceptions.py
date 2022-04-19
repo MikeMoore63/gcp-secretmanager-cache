@@ -14,6 +14,11 @@ class SecretRotatorError(Exception):
     """Base Error class."""
 
 
+class DBPWDInputUnsafe(SecretRotatorError):
+    CUSTOM_ERROR_MESSAGE = "Database Secret {} has Username {} or password have characters not allowed ['\" ;]"
+    def __init__(self, secret_id, username):
+        super(DBINputUnsafe, self).__init__(self.CUSTOM_ERROR_MESSAGE.format(secret_id, username))
+
 class NewSecretCreateError(SecretRotatorError):
     CUSTOM_ERROR_MESSAGE = "Secret {} rotation failed {} error {}"
 

@@ -12,7 +12,8 @@ from gcp_secretmanager_cache.cache_secret import GCPCachedSecret
 from gcp_secretmanager_cache.exceptions import NoActiveSecretVersion, \
     SecretCacheError, \
     NewSecretCreateError, \
-    SecretRotatorError
+    SecretRotatorError, \
+    DBPWDInputUnsafe
 from gcp_secretmanager_cache.decorators import InjectKeywordedSecretString, InjectSecretString
 from gcp_secretmanager_cache.managers import SecretRotator, \
     SecretRotatorMechanic, \
@@ -37,4 +38,5 @@ __all__ = ["__version__",
            "APIKeyRotator",
            "SAKeyRotator",
            "DBApiSingleUserPasswordRotatorConstants",
-           "DBApiSingleUserPasswordRotator"]
+           "DBApiSingleUserPasswordRotator",
+           "DBPWDInputUnsafe"]

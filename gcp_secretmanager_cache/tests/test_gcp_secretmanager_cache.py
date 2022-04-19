@@ -868,6 +868,11 @@ class TestScannerMethods(unittest.TestCase):
         assert secret["privateKeyData"] != secret2["privateKeyData"], "Initial key and second key are not the same"
 
     def test_postgres_db_su_rotator(self):
+
+        # if env not set skip this
+        if "DBPGSUPASSWORD" not in os.environ:
+            return
+
         # Build the parent name from the project.
         parent = f"projects/{self.project_id}"
         secret_id = "TEST_DBPGSUKEY_ROTATION_FRAMEWORKS"
