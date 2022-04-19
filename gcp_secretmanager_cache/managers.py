@@ -642,7 +642,7 @@ class DBApiSingleUserPasswordRotator(SecretRotatorMechanic):
     Requires access to starting secret or an initial secret.
     Assumes server properties for username and password are
     {
-        "username":"string",
+        "user":"string",
         "password": "string"
     }
 

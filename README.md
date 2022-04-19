@@ -86,10 +86,11 @@ The labels that MUST be attached for this to happen are illustrated below. NB th
 ```
 The concrete implemntations of secret rotators are documented below. For these to work the approriate roles MUST be granted to the process to be able to do its job.
 
-|secret_type|Mechanic Class| What it manages the secret of                                         |
-|-----------|--------------|-----------------------------------------------------------------------|
-|google-apikey|APIKeyRotator| Manages creation of new google api keys                               |
-|google-serviceaccount|SAKeyRotator| Manages creation of service account keys for a google servce accounts |
+|secret_type|Mechanic Class| What it manages the secret of                                                                                                                                                                                                                                                     |
+|-----------|--------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+|google-apikey|APIKeyRotator| Manages creation of new google api keys                                                                                                                                                                                                                                           |
+|google-serviceaccount|SAKeyRotator| Manages creation of service account keys for a google servce accounts                                                                                                                                                                                                             |
+|database-api|DBApiSingleUserPasswordRotator| Manages password rotation of a single user account. Logs in as that user changes password and updates secret. The class DBApiSingleUserPasswordRotatorConstants has constants for various popular databases. See tests in source code for examples with Postgres, MySQL and MSSQL |
 
 Example code for the api key rotator below.
 

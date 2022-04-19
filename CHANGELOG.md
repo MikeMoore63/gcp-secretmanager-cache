@@ -1,5 +1,10 @@
+### version 0.2.3
+* Added MYSQL and MSSQL support and tested password rotation for these 
+* Added handling of characters in user names that look like sql injection
+* Added new exception class to handle bad characters in username or initial secret
+* Added to bad characters in password string to work around escaping in MySQL of \
 ### version 0.2.2
-* Added tests for database password rotation
+* Added tests for postgressdatabase password rotation
 * Fixed bugs found in testing
 ### version 0.2.1
 * Fixed bugs in rotation frameworks
