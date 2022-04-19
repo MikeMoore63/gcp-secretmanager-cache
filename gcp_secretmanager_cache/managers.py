@@ -654,7 +654,7 @@ class DBApiSingleUserPasswordRotator(SecretRotatorMechanic):
         "newpassword": "string" # the new password
     }
     """
-    BLOCKED_CHARACTERS=";' \""
+    BLOCKED_CHARACTERS=";' \"\\"
 
     def __init__(self, db, statement, exclude_characters=None, password_length=16,usernamekey=None, passwordkey=None):
         super(DBApiSingleUserPasswordRotator,self).__init__()
@@ -664,7 +664,7 @@ class DBApiSingleUserPasswordRotator(SecretRotatorMechanic):
             passwordkey = "password"
 
         if not exclude_characters:
-            exclude_characters=" ,'\""
+            exclude_characters=" ,'\"\\"
         self._db = db
         self._statement = statement
         self._exclude_charaters = exclude_characters
@@ -714,8 +714,8 @@ class DBApiSingleUserPasswordRotator(SecretRotatorMechanic):
         # if we get no active version we use the initial secret
         except NoActiveSecretVersion as e:
             secret = change_meta.config["initial_secret"]
-            if any(not c in self.BLOCKED_CHARACTERS for c in secret["user"]) or \
-                    any(not c in self.BLOCKED_CHARACTERS for c in secret["password"]):
+            if any( c in self.BLOCKED_CHARACTERS for c in secret["user"]) or \
+                    any(c in self.BLOCKED_CHARACTERS for c in secret["password"]):
                 raise DBPWDInputUnsafe(change_meta.secret_id,secret["user"])
 
         secret_modified ={}
