@@ -2,22 +2,22 @@
 
 import json
 import logging
+import random
+import re
+import string
 import threading
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 
-import random
-import string
 import google.auth
 import google_crc32c
 import pytz
-import re
 from dateutil import parser
 from google.cloud import secretmanager, secretmanager_v1
 from google.cloud import storage
 from googleapiclient.discovery import build
-from google.api_core import exceptions
+
 from gcp_secretmanager_cache.exceptions import NewSecretCreateError
 from .cache_secret import GCPCachedSecret, NoActiveSecretVersion
 
@@ -28,13 +28,10 @@ Designed to support various secret patterns
 
 add new reap old - At rotation period past last secret adds new secret. But has a means of knowing
                    deleting secrets over rotation period + buffer time old.
-blue green       - 2 logical secrets exist blue,green if blue is active the grean secret is
-                   updated becomes active blue rotation time later  time later blue is updated
-                   becomes active
 master manager   - In this strategy a master secret allows access to a resource and is given an
                    user account to update a secret for. The secret may or may not have an expiry 
                    time.
-change own       - In this the secret being changes is used as a means to connect to a service to
+single user change own  - In this the secret being changes is used as a means to connect to a service to
                    update to a new value.
 
 These are designed to be invoked on events from secret manager see
@@ -628,6 +625,131 @@ class DBApiSingleUserPasswordRotator(SecretRotatorMechanic):
             with conn.cursor() as curs:
                 curs.execute(self.statement.format_map(
                     {**server_connection_properties, **{"newpassword": new_password}}))
+
+        new_secret = {"user": secret["user"], "password": new_password}
+        return new_secret
+
+    def validate_secret(self,
+                        rotator,
+                        change_meta,
+                        num_enabled_secrets):
+        return None
+
+class DBApiMasterUserPasswordRotatorConstants:
+    PG = "ALTER USER {login_user} WITH PASSWORD '{newpassword}';"
+    MYSQL = "ALTER USER '{login_user}'@'localhost' IDENTIFIED BY '{newpassword}';"
+    ORACLE = "ALTER USER {login_user} IDENTIFIED BY {newpassword};"
+    SYBSASE = "sp_password {password}, {newpassword} , {login_user};"
+    MSSQL = "ALTER LOGIN {login_user} WITH PASSWORD = '{newpassword}';"
+
+class DBApiMasterUserPasswordRotator(SecretRotatorMechanic):
+    """
+    Class to provide mechanic of rotating a password for a user.
+    Requires access to starting secret or an initial secret.
+    Assumes server properties for username and password are
+    {
+        "user":"string",
+        "password": "string"
+    }
+
+    The constructor is passed in a db-api connection.
+    and a statement which can have parameters
+    {
+        "user": "string",
+        "password": "string", # starting password
+        "newpassword": "string" # the new password
+    }
+    """
+    BLOCKED_CHARACTERS = ";' \"\\"
+
+    def __init__(self, db, statement, exclude_characters=None, password_length=16, usernamekey=None,
+                 passwordkey=None):
+        super(DBApiSingleUserPasswordRotator, self).__init__()
+        if not usernamekey:
+            usernamekey = "user"
+        if not passwordkey:
+            passwordkey = "password"
+
+        if not exclude_characters:
+            exclude_characters = " ,'\"\\"
+        self._db = db
+        self._statement = statement
+        self._exclude_charaters = exclude_characters
+        self._password_length = password_length
+        self._usernamekey = usernamekey
+        self._passwordkey = passwordkey
+
+    def _generate_password(self):
+        letters = string.ascii_letters + string.digits + string.punctuation
+        password = ""
+        while len(password) < self._password_length:
+            candidate = random.choice(letters)
+            if not self._exclude_charaters or candidate not in self._exclude_charaters:
+                password = password + candidate
+        return password
+
+    @property
+    def db(self):
+        return self._db
+
+    @property
+    def statement(self):
+        return self._statement
+
+    def disable_old_secret_versions_material(self,
+                                             rotator,
+                                             change_meta,
+                                             event):
+
+        if event != "PreRotate":
+            return
+
+        assert change_meta.secret_type == "databasemaster-api", "Expect databasemaster-api as secret_type"
+
+    def create_new_secret(self,
+                          rotator,
+                          change_meta,
+                          num_enabled_secrets):
+        assert change_meta.secret_type == "databasemaster-api", "Expect secret type to be " \
+                                                          "databasemaster-api"
+
+        # Get the master secret
+        secret_cache = GCPCachedSecret(change_meta.config["master_secret"])
+        user = None
+
+        # As this master this allows all configs to pont at same file
+        # This is preffered
+        if "user" in change_meta.labels:
+            user = change_meta.labels["user"]
+        else:
+            # Alternate needs a config file for every user
+            user = change_meta.config["user"]
+
+        secret = json.loads(secret_cache.get_secret().decode("utf-8"))
+
+        secret_modified = {}
+        secret_modified[self._usernamekey] = secret["user"]
+        secret_modified[self._passwordkey] = secret["password"]
+
+        # config json structure has properties to allow connection
+        # these are merged with secret to create connection properties
+        server_connection_properties = {**change_meta.config["server_properties"],
+                                        **secret_modified}
+
+        # we generate a new password
+        new_password = self._generate_password()
+
+        change_password = {
+            "login_user": user,
+            "newpassword": new_password,
+            "password": secret["password"]
+        }
+
+
+        with self.db.connect(**server_connection_properties) as conn:
+            with conn.cursor() as curs:
+                curs.execute(self.statement.format_map(
+                    {**server_connection_properties, **change_password}))
 
         new_secret = {"user": secret["user"], "password": new_password}
         return new_secret
