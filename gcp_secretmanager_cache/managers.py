@@ -262,7 +262,8 @@ class SecretRotator:
             if previous and response.state == secretmanager_v1.SecretVersion.State.ENABLED:
                 to_disable.append(previous)
 
-            if response.state == secretmanager_v1.SecretVersion.State.DISABLED and response.create_time < \
+            if response.state == secretmanager_v1.SecretVersion.State.DISABLED and \
+                    response.create_time < \
                     change_meta.delete_oldest_time:
                 to_delete.append(response)
 
@@ -315,116 +316,6 @@ class SecretRotator:
             }
         )
         return response
-
-
-class APIKeyRotatorMechanic(SecretRotatorMechanic):
-    """
-    Class to provide mechanic of rotating an api key
-    Assumes the config json doc has the required attributes.
-    APikeys can have same name so we use the displayName to identify
-    previous versions
-    """
-
-    def disable_old_secret_versions_material(self,
-                                             rotator,
-                                             change_meta,
-                                             event):
-
-        if event != "PreRotate":
-            return
-
-        credentials = rotator.credentials
-        reap_older_than = change_meta.reap_older_than
-
-        assert "displayName" in change_meta.config, "APIKEY config must have a template api key " \
-                                                    "whch must have a displayName"
-        apikeys_service = build('apikeys', 'v2', credentials=credentials)
-        loc_api = apikeys_service.projects().locations().keys()
-
-        parent = f"projects/{change_meta.project_id}/locations/global"
-        if "parent" in change_meta.config:
-            parent = change_meta.config["parent"]
-
-        psrequest = loc_api.list(
-            parent=parent,
-            pageSize=300)
-
-        to_delete = []
-        while psrequest is not None:
-            api_key_list_resp = psrequest.execute()
-            for api_key in api_key_list_resp.get('keys', []):
-                if api_key["displayName"] == change_meta.config["displayName"]:
-                    create_time = parser.parse(api_key["createTime"])
-                    # if old enough potential to be deleted
-                    if create_time < reap_older_than:
-                        to_delete.append(api_key)
-
-            if "nextPageToken" in api_key_list_resp:
-                psrequest = loc_api.list(
-                    parent=parent,
-                    pageSize=300,
-                    pageToken=api_key_list_resp["nextPageToken"])
-            else:
-                psrequest = None
-
-        # lets leave the last one
-        # we may have had event handler down for along time
-        # avoid over eagerly deleteing
-        last = None
-        for delete_me in to_delete:
-            if not last or last["createTime"] > delete_me["createTime"]:
-                last = delete_me
-
-        to_delete = [d for d in to_delete if not last or d["name"] != last["name"]]
-
-        # now delete the keys we no longer need
-        for delete_me in to_delete:
-            del_req = loc_api.delete(
-                name=delete_me["name"]
-            )
-            del_req.execute()
-
-    def create_new_secret(self,
-                          rotator,
-                          change_meta,
-                          num_enabled_secrets):
-        apikeys_service = build('apikeys', 'v2', credentials=change_meta.credentials)
-        loc_api = apikeys_service.projects().locations().keys()
-        ops_api = apikeys_service.operations()
-
-        parent = f"projects/{change_meta.project_id}/locations/global"
-        if "parent" in change_meta.config:
-            parent = change_meta.config["parent"]
-
-        body = {}
-        for key in ["restrictions", "displayName", "annotations"]:
-            if key in change_meta.config:
-                body[key] = change_meta.config[key]
-
-        req_create = loc_api.create(parent=parent,
-                                    body=body)
-        op_response = req_create.execute()
-        while not op_response.get("done"):
-            op_req = ops_api.get(
-                name=op_response["name"]
-            )
-            op_response = op_req.execute()
-
-        if "error" in op_response:
-            raise NewSecretCreateError(change_meta.secret_id, body, op_response["error"])
-
-        # Now we can get the resource created
-        apikey_resource = op_response["response"]
-
-        keystring_req = loc_api.getKeyString(name=apikey_resource["name"])
-        keystring_object = keystring_req.execute()
-        return keystring_object["keyString"]
-
-    def validate_secret(self,
-                        rotator,
-                        change_meta,
-                        num_enabled_secrets):
-        return None
 
 
 class APIKeyRotator(SecretRotatorMechanic):
@@ -574,7 +465,8 @@ class SAKeyRotator(SecretRotatorMechanic):
             createTime = parser.parse(api_key["validAfterTime"])
             if not latest or createTime > parser.parse(latest["validAfterTime"]):
                 latest = api_key
-            if createTime < change_meta.disable_oldest_time and ("disabled" not in api_key or not api_key["disabled"]):
+            if createTime < change_meta.disable_oldest_time and (
+                    "disabled" not in api_key or not api_key["disabled"]):
                 to_disable.append(api_key)
                 logging.getLogger(__name__).info(
                     f"Found sa key to disable {json.dumps(api_key)}")
@@ -630,11 +522,12 @@ class SAKeyRotator(SecretRotatorMechanic):
 
 
 class DBApiSingleUserPasswordRotatorConstants:
-    PG="ALTER USER {user} WITH PASSWORD '{newpassword}';"
-    MYSQL="SET PASSWORD = PASSWORD('{newpassword}');"
-    ORACLE="ALTER USER {user} IDENTIFIED BY {newpassword};"
-    SYBSASE="sp_password {password}, {newpassword}"
-    MSSQL="ALTER LOGIN {user} WITH PASSWORD = '{newpassword}' OLD_PASSWORD = '{password}';"
+    PG = "ALTER USER {user} WITH PASSWORD '{newpassword}';"
+    MYSQL = "SET PASSWORD = PASSWORD('{newpassword}');"
+    ORACLE = "ALTER USER {user} IDENTIFIED BY {newpassword};"
+    SYBSASE = "sp_password {password}, {newpassword}"
+    MSSQL = "ALTER LOGIN {user} WITH PASSWORD = '{newpassword}' OLD_PASSWORD = '{password}';"
+
 
 class DBApiSingleUserPasswordRotator(SecretRotatorMechanic):
     """
@@ -654,17 +547,18 @@ class DBApiSingleUserPasswordRotator(SecretRotatorMechanic):
         "newpassword": "string" # the new password
     }
     """
-    BLOCKED_CHARACTERS=";' \"\\"
+    BLOCKED_CHARACTERS = ";' \"\\"
 
-    def __init__(self, db, statement, exclude_characters=None, password_length=16,usernamekey=None, passwordkey=None):
-        super(DBApiSingleUserPasswordRotator,self).__init__()
+    def __init__(self, db, statement, exclude_characters=None, password_length=16, usernamekey=None,
+                 passwordkey=None):
+        super(DBApiSingleUserPasswordRotator, self).__init__()
         if not usernamekey:
             usernamekey = "user"
         if not passwordkey:
             passwordkey = "password"
 
         if not exclude_characters:
-            exclude_characters=" ,'\"\\"
+            exclude_characters = " ,'\"\\"
         self._db = db
         self._statement = statement
         self._exclude_charaters = exclude_characters
@@ -714,24 +608,26 @@ class DBApiSingleUserPasswordRotator(SecretRotatorMechanic):
         # if we get no active version we use the initial secret
         except NoActiveSecretVersion as e:
             secret = change_meta.config["initial_secret"]
-            if any( c in self.BLOCKED_CHARACTERS for c in secret["user"]) or \
+            if any(c in self.BLOCKED_CHARACTERS for c in secret["user"]) or \
                     any(c in self.BLOCKED_CHARACTERS for c in secret["password"]):
-                raise DBPWDInputUnsafe(change_meta.secret_id,secret["user"])
+                raise DBPWDInputUnsafe(change_meta.secret_id, secret["user"])
 
-        secret_modified ={}
-        secret_modified[self._usernamekey]=secret["user"]
+        secret_modified = {}
+        secret_modified[self._usernamekey] = secret["user"]
         secret_modified[self._passwordkey] = secret["password"]
 
         # config json structure has properties to allow connection
         # these are merged with secret to create connection properties
-        server_connection_properties = {**change_meta.config["server_properties"], **secret_modified}
+        server_connection_properties = {**change_meta.config["server_properties"],
+                                        **secret_modified}
 
         # we generate a new password
         new_password = self._generate_password()
 
         with self.db.connect(**server_connection_properties) as conn:
             with conn.cursor() as curs:
-                curs.execute(self.statement.format_map({**server_connection_properties, **{"newpassword": new_password}}))
+                curs.execute(self.statement.format_map(
+                    {**server_connection_properties, **{"newpassword": new_password}}))
 
         new_secret = {"user": secret["user"], "password": new_password}
         return new_secret
