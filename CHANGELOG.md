@@ -1,6 +1,9 @@
-### version 0.2.3
+### version 0.3.0
 * Moved tests to pytds due to unreliability of error handling in pymssql
 * Added support for connection strings so can work with pydobc
+* Added DBApiMasterUserPasswordRotatorConstants and DBApiMasterUserPasswordRotator so Master user rotator frameworks
+* Refactored database rotators to a base class DBRotator to reduce duplicated code in SingleUser and MasterUser DB rotators
+* Added tests for database master user rotator Postgres, MySQL and MSSQL
 ### version 0.2.3
 * Added MYSQL and MSSQL support and tested password rotation for these 
 * Added handling of characters in user names that look like sql injection

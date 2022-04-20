@@ -869,7 +869,7 @@ class TestScannerMethods(unittest.TestCase):
         logging.getLogger(__name__).info(f"API key secret 2 is {json.dumps(secret2)}")
         assert secret["privateKeyData"] != secret2["privateKeyData"], "Initial key and second key are not the same"
 
-    def test_postgres_db_su_rotator(self):
+    def test_postgres_db_rotator(self):
 
         # if env not set skip this
         if "DBPGSUPASSWORD" not in os.environ:
@@ -945,8 +945,34 @@ class TestScannerMethods(unittest.TestCase):
         sm_service = build("secretmanager", "v1")
         secret_req = sm_service.projects().secrets().get(name=name)
         secret_response = secret_req.execute()
+
         data = json.dumps(secret_response).encode("utf-8")
 
+        # test master user for same secret
+        # we do this as we can destroy everything bar master_secret
+        rotator_mechanic = DBApiMasterUserPasswordRotator(db=psycopg2,
+                                                          statement=DBApiMasterUserPasswordRotatorConstants.PG,
+                                                          master_secret="projects/231925320579/secrets/TEST_PG_MASTER_SECRET")
+        test_rotator = SecretRotator(rotator_mechanic)
+        test_rotator.rotate_secret({
+            "eventType": "SECRET_ROTATE",
+            "secretId": name
+        }, data)
+
+        secret_cache = GCPCachedSecret(name)
+        secret = json.loads(secret_cache.get_secret().decode("utf-8"))
+        logging.getLogger(__name__).info(f"API key secret 1 is {json.dumps(secret)}")
+        test_rotator.rotate_secret({
+            "eventType": "SECRET_ROTATE",
+            "secretId": name
+        }, data)
+        secret_cache.invalidate_secret()
+        secret2 = json.loads(secret_cache.get_secret().decode("utf-8"))
+        logging.getLogger(__name__).info(f"API key secret 2 is {json.dumps(secret2)}")
+        assert secret["password"] != secret2[
+            "password"], "Initial key and second key are not the same"
+
+        # test single user
         rotator_mechanic = DBApiSingleUserPasswordRotator(db=psycopg2,
                                                           statement=DBApiSingleUserPasswordRotatorConstants.PG)
         test_rotator = SecretRotator(rotator_mechanic)
@@ -968,7 +994,12 @@ class TestScannerMethods(unittest.TestCase):
         assert secret["password"] != secret2[
             "password"], "Initial key and second key are not the same"
 
-    def test_mysql_db_su_rotator(self):
+
+
+
+
+
+    def test_mysql_db_rotator(self):
 
         # if env not set skip this
         if "DBMYSQLSUPASSWORD" not in os.environ:
@@ -1045,6 +1076,31 @@ class TestScannerMethods(unittest.TestCase):
         secret_response = secret_req.execute()
         data = json.dumps(secret_response).encode("utf-8")
 
+        # Master user test
+
+        rotator_mechanic = DBApiMasterUserPasswordRotator(db=pymysql,
+                                                          statement=DBApiMasterUserPasswordRotatorConstants.MYSQL,
+                                                          master_secret="projects/231925320579/secrets/TEST_MYSQL_MASTER_SECRET")
+        test_rotator = SecretRotator(rotator_mechanic)
+        test_rotator.rotate_secret({
+            "eventType": "SECRET_ROTATE",
+            "secretId": name
+        }, data)
+
+        secret_cache = GCPCachedSecret(name)
+        secret = json.loads(secret_cache.get_secret().decode("utf-8"))
+        logging.getLogger(__name__).info(f"API key secret 1 is {json.dumps(secret)}")
+        test_rotator.rotate_secret({
+            "eventType": "SECRET_ROTATE",
+            "secretId": name
+        }, data)
+        secret_cache.invalidate_secret()
+        secret2 = json.loads(secret_cache.get_secret().decode("utf-8"))
+        logging.getLogger(__name__).info(f"API key secret 2 is {json.dumps(secret2)}")
+        assert secret["password"] != secret2[
+            "password"], "Initial key and second key are not the same"
+
+        # Single user
         rotator_mechanic = DBApiSingleUserPasswordRotator(db=pymysql,
                                                           statement=DBApiSingleUserPasswordRotatorConstants.MYSQL)
         test_rotator = SecretRotator(rotator_mechanic)
@@ -1066,7 +1122,7 @@ class TestScannerMethods(unittest.TestCase):
         assert secret["password"] != secret2[
             "password"], "Initial key and second key are not the same"
 
-    def test_mssql_db_su_rotator(self):
+    def test_mssql_db_rotator(self):
 
         # if env not set skip this
         if "DBMSSQLSUPASSWORD" not in os.environ:
@@ -1144,7 +1200,30 @@ class TestScannerMethods(unittest.TestCase):
         secret_response = secret_req.execute()
         data = json.dumps(secret_response).encode("utf-8")
 
+        # multi user rotator
+        rotator_mechanic = DBApiMasterUserPasswordRotator(db=pytds,
+                                                          statement=DBApiMasterUserPasswordRotatorConstants.MSSQL,
+                                                          master_secret="projects/231925320579/secrets/TEST_MSSQL_MASTER_SECRET")
+        test_rotator = SecretRotator(rotator_mechanic)
+        test_rotator.rotate_secret({
+            "eventType": "SECRET_ROTATE",
+            "secretId": name
+        }, data)
 
+        secret_cache = GCPCachedSecret(name)
+        secret = json.loads(secret_cache.get_secret().decode("utf-8"))
+        logging.getLogger(__name__).info(f"MS SQL Sever secret 1 is {json.dumps(secret)}")
+        test_rotator.rotate_secret({
+            "eventType": "SECRET_ROTATE",
+            "secretId": name
+        }, data)
+        secret_cache.invalidate_secret()
+        secret2 = json.loads(secret_cache.get_secret().decode("utf-8"))
+        logging.getLogger(__name__).info(f"MS SQL Sever secret 2 is {json.dumps(secret2)}")
+        assert secret["password"] != secret2[
+            "password"], "Initial key and second key are not the same"
+
+        # single use rotator
         rotator_mechanic = DBApiSingleUserPasswordRotator(db=pytds,
                                                           statement=DBApiSingleUserPasswordRotatorConstants.MSSQL)
         test_rotator = SecretRotator(rotator_mechanic)
