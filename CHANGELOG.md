@@ -1,4 +1,7 @@
 ### version 0.2.3
+* Moved tests to pytds due to unreliability of error handling in pymssql
+* Added support for connection strings so can work with pydobc
+### version 0.2.3
 * Added MYSQL and MSSQL support and tested password rotation for these 
 * Added handling of characters in user names that look like sql injection
 * Added new exception class to handle bad characters in username or initial secret

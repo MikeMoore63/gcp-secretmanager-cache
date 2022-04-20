@@ -38,7 +38,7 @@ setuptools.setup(
     tests_require=['nose',
                    'psycopg2-binary~=2.0',
                    'PyMySQL',
-                   'pymssql'],
+                   'python-tds'],
     include_package_data=True,
     license="MIT",
     scripts=[],

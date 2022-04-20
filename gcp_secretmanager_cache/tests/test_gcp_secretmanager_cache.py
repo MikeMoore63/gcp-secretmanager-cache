@@ -19,7 +19,7 @@ import threading
 import unittest
 import psycopg2
 import pymysql
-import pymssql
+import pytds
 from dataclasses import asdict
 from datetime import datetime, timedelta
 from time import sleep, perf_counter
@@ -1103,9 +1103,10 @@ class TestScannerMethods(unittest.TestCase):
             pass
 
         blob.upload_from_string(json.dumps({
-            "server_properties": {"host": "127.0.0.1",
-                                  "port": 5433
-                                  },
+            "server_properties": {
+                                    "dsn": "127.0.0.1",
+                                    "port": 5433
+                                 },
             "initial_secret": {
                 "user": "mike",
                 "password": os.environ["DBMSSQLSUPASSWORD"]
@@ -1143,7 +1144,8 @@ class TestScannerMethods(unittest.TestCase):
         secret_response = secret_req.execute()
         data = json.dumps(secret_response).encode("utf-8")
 
-        rotator_mechanic = DBApiSingleUserPasswordRotator(db=pymssql,
+
+        rotator_mechanic = DBApiSingleUserPasswordRotator(db=pytds,
                                                           statement=DBApiSingleUserPasswordRotatorConstants.MSSQL)
         test_rotator = SecretRotator(rotator_mechanic)
         test_rotator.rotate_secret({
@@ -1153,14 +1155,14 @@ class TestScannerMethods(unittest.TestCase):
 
         secret_cache = GCPCachedSecret(name)
         secret = json.loads(secret_cache.get_secret().decode("utf-8"))
-        logging.getLogger(__name__).info(f"API key secret 1 is {json.dumps(secret)}")
+        logging.getLogger(__name__).info(f"MS SQL Sever secret 1 is {json.dumps(secret)}")
         test_rotator.rotate_secret({
             "eventType": "SECRET_ROTATE",
             "secretId": name
         }, data)
         secret_cache.invalidate_secret()
         secret2 = json.loads(secret_cache.get_secret().decode("utf-8"))
-        logging.getLogger(__name__).info(f"API key secret 2 is {json.dumps(secret2)}")
+        logging.getLogger(__name__).info(f"MS SQL Sever secret 2 is {json.dumps(secret2)}")
         assert secret["password"] != secret2[
             "password"], "Initial key and second key are not the same"
 

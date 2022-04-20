@@ -618,13 +618,21 @@ class DBApiSingleUserPasswordRotator(SecretRotatorMechanic):
         server_connection_properties = {**change_meta.config["server_properties"],
                                         **secret_modified}
 
+        conn_kwargs = server_connection_properties
+        conn_args = []
+        if "connstring" in change_meta.config:
+            conn_kwargs = {}
+            conn_args.append(change_meta.config["connstring"].format_map(server_connection_properties))
+
+
         # we generate a new password
         new_password = self._generate_password()
 
-        with self.db.connect(**server_connection_properties) as conn:
+        with self.db.connect(*conn_args, **conn_kwargs) as conn:
             with conn.cursor() as curs:
                 curs.execute(self.statement.format_map(
                     {**server_connection_properties, **{"newpassword": new_password}}))
+                conn.commit()
 
         new_secret = {"user": secret["user"], "password": new_password}
         return new_secret
@@ -733,8 +741,15 @@ class DBApiMasterUserPasswordRotator(SecretRotatorMechanic):
 
         # config json structure has properties to allow connection
         # these are merged with secret to create connection properties
-        server_connection_properties = {**change_meta.config["server_properties"],
-                                        **secret_modified}
+        server_connection_properties_asdict = {**change_meta.config["server_properties"],
+                                               **secret_modified}
+
+        server_connection_properties = server_connection_properties_asdict
+        if "connstring" in change_meta.config:
+            server_connection_properties = {
+                "connstring": change_meta.config["connstring"].fromat_map(
+                    server_connection_properties_asdict)
+            }
 
         # we generate a new password
         new_password = self._generate_password()
@@ -749,7 +764,8 @@ class DBApiMasterUserPasswordRotator(SecretRotatorMechanic):
         with self.db.connect(**server_connection_properties) as conn:
             with conn.cursor() as curs:
                 curs.execute(self.statement.format_map(
-                    {**server_connection_properties, **change_password}))
+                    {**server_connection_properties_asdict, **change_password}))
+                conn.commit()
 
         new_secret = {"user": secret["user"], "password": new_password}
         return new_secret
