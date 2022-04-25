@@ -1,3 +1,5 @@
+### version 0.3.2
+* Made service key account rotator create SA identical to standard api 9add decoding of privatekey to the data that is stored)
 ### version 0.3.1
 * Widened the range of versions of google-api-python-client and google-cloud-storage the module depends upon to include 1.0 and 2.0 versions not just 2.0
 ### version 0.3.0

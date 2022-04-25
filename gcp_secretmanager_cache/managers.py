@@ -10,6 +10,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 
+import base64
 import google.auth
 import google_crc32c
 import pytz
@@ -501,15 +502,16 @@ class SAKeyRotator(SecretRotatorMechanic):
                                              " key"
 
         body = {
-            "privateKeyType": "TYPE_GOOGLE_CREDENTIALS_FILE",
-            "keyAlgorithm": "KEY_ALG_RSA_2048"
+            "privateKeyType": "TYPE_GOOGLE_CREDENTIALS_FILE"
         }
         iam_service = build('iam', 'v1', credentials=credentials)
         loc_api = iam_service.projects().serviceAccounts().keys()
         sakey_req = loc_api.create(name=change_meta.config["name"],
+                                   alt="json",
                                    body=body)
         sakey_resp = sakey_req.execute()
-        return sakey_resp
+        new_key = base64.standard_b64decode(sakey_resp["privateKeyData"])
+        return new_key
 
     def validate_secret(self,
                         rotator,
