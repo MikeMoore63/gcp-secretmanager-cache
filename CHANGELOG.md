@@ -1,3 +1,5 @@
+### version 0.3.3
+* Changed way password statement is for Oracle is surrounded which allows more symbols
 ### version 0.3.2
 * Made service key account rotator create SA identical to standard api 9add decoding of privatekey to the data that is stored)
 ### version 0.3.1
