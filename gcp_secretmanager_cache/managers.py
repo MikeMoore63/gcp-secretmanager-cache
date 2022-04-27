@@ -563,7 +563,7 @@ class DBApiSingleUserPasswordRotatorConstants:
     PG = "ALTER USER {user} WITH PASSWORD '{newpassword}';"
     MARIADB = "SET PASSWORD = PASSWORD('{newpassword}');"
     MYSQL = "SET PASSWORD = PASSWORD('{newpassword}');"
-    ORACLE = "ALTER USER {user} IDENTIFIED BY {newpassword};"
+    ORACLE = 'ALTER USER {user} IDENTIFIED BY "{newpassword}";'
     SYBSASE = "sp_password {password}, {newpassword}"
     MSSQL = "ALTER LOGIN {user} WITH PASSWORD = '{newpassword}' OLD_PASSWORD = '{password}';"
 
@@ -664,7 +664,7 @@ class DBApiMasterUserPasswordRotatorConstants:
     PG = "ALTER USER {login_user} WITH PASSWORD '{newpassword}';"
     MARIADB = "ALTER USER '{login_user}' IDENTIFIED BY '{newpassword}';"
     MYSQL = "ALTER USER '{login_user}' IDENTIFIED BY '{newpassword}';"
-    ORACLE = "ALTER USER {login_user} IDENTIFIED BY {newpassword};"
+    ORACLE = 'ALTER USER {login_user} IDENTIFIED BY "{newpassword}";'
     SYBSASE = "sp_password {password}, {newpassword} , {login_user};"
     MSSQL = "ALTER LOGIN {login_user} WITH PASSWORD = '{newpassword}';"
 
