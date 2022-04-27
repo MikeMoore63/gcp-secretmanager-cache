@@ -534,7 +534,7 @@ class DBRotator(SecretRotatorMechanic):
             passwordkey = "password"
 
         if not exclude_characters:
-            exclude_characters = " ,'\"\\"
+            exclude_characters = " ,'\"\\+=%^*~[].{}@&"
         self._db = db
         self._statement = statement
         self._exclude_charaters = exclude_characters
