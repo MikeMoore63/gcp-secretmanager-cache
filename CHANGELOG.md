@@ -1,3 +1,5 @@
+### version 0.3.4
+* Added more characters to be exclude din passwords due to limitations with Oracle
 ### version 0.3.3
 * Changed way password statement is for Oracle is surrounded which allows more symbols
 ### version 0.3.2
