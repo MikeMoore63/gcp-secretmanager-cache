@@ -1,3 +1,6 @@
+### version 0.3.5
+* Change password generator to remove punctuation due to issues with oracle and these characters. Increase default password length.
+* Replace random with secrets to generate stronger cryptographicaly secure passwords.
 ### version 0.3.4
 * Added more characters to be exclude din passwords due to limitations with Oracle
 ### version 0.3.3
