@@ -2,7 +2,7 @@
 
 import json
 import logging
-import random
+import secrets
 import re
 import string
 import threading
@@ -546,7 +546,7 @@ class DBRotator(SecretRotatorMechanic):
         letters = string.ascii_letters + string.digits
         password = ""
         while len(password) < self._password_length:
-            candidate = random.choice(letters)
+            candidate = secrets.choice(letters)
             if not self._exclude_charaters or candidate not in self._exclude_charaters:
                 password = password + candidate
         return password
