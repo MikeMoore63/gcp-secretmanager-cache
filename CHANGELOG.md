@@ -1,3 +1,5 @@
+### version 0.3.6
+* Now have fully tested Oracle statement this removes the ";" that was causing OAR-0099 errors
 ### version 0.3.5
 * Change password generator to remove punctuation due to issues with oracle and these characters. Increase default password length.
 * Replace random with secrets to generate stronger cryptographicaly secure passwords.
