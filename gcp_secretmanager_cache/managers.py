@@ -525,7 +525,7 @@ class DBRotator(SecretRotatorMechanic):
     Class that provides common mechanics for changing database passwords
     """
     BLOCKED_CHARACTERS = ";' \"\\"
-    def __init__(self, db, statement, exclude_characters=None, password_length=16, usernamekey=None,
+    def __init__(self, db, statement, exclude_characters=None, password_length=20, usernamekey=None,
                  passwordkey=None):
         super(DBRotator, self).__init__()
         if not usernamekey:
@@ -543,7 +543,7 @@ class DBRotator(SecretRotatorMechanic):
         self._passwordkey = passwordkey
 
     def _generate_password(self):
-        letters = string.ascii_letters + string.digits + string.punctuation
+        letters = string.ascii_letters + string.digits
         password = ""
         while len(password) < self._password_length:
             candidate = random.choice(letters)
