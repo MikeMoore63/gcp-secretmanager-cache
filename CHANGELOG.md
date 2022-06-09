@@ -1,4 +1,10 @@
-## Unreleased
+## 0.4.1 (2022-06-09)
+
+### Fix
+
+- **changelogy**: move to conventional commits to manage changelog
+
+## 0.4.0 (2022-06-09)
 
 ### Fix
 
