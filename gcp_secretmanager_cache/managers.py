@@ -361,7 +361,7 @@ class APIKeyRotator(SecretRotatorMechanic):
                         latest = api_key
                     if createTime < change_meta.delete_oldest_time:
                         to_delete.append(api_key)
-                        logging.getLogger(__name__).info(f"Found apikey {json.dumps(api_key)}")
+                        logging.getLogger(__name__).info(f"Found apikey to delete {json.dumps(api_key)}")
 
             if "nextPageToken" in api_key_list_resp:
                 psrequest = loc_api.list(
@@ -378,6 +378,7 @@ class APIKeyRotator(SecretRotatorMechanic):
                 )
                 # returns op but we won't wait
                 del_req.execute()
+                logging.getLogger(__name__).info(f"Deleted apikey {delete_key['name']}")
 
     def create_new_secret(self,
                           rotator,
