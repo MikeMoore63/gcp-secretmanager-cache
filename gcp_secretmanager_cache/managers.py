@@ -1,16 +1,17 @@
 # -*- coding: utf-8 -*-
 
+import base64
 import json
 import logging
-import secrets
+import os
 import re
+import secrets
 import string
 import threading
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 
-import base64
 import google.auth
 import google_crc32c
 import pytz
@@ -19,7 +20,7 @@ from google.cloud import secretmanager, secretmanager_v1
 from google.cloud import storage
 from googleapiclient.discovery import build
 
-from gcp_secretmanager_cache.exceptions import NewSecretCreateError
+from gcp_secretmanager_cache.exceptions import NewSecretCreateError, DBPWDInputUnsafe
 from .cache_secret import GCPCachedSecret, NoActiveSecretVersion
 
 """
@@ -32,7 +33,8 @@ add new reap old - At rotation period past last secret adds new secret. But has 
 master manager   - In this strategy a master secret allows access to a resource and is given an
                    user account to update a secret for. The secret may or may not have an expiry 
                    time.
-single user change own  - In this the secret being changes is used as a means to connect to a service to
+single user change own  - In this the secret being changes is used as a means to connect to a 
+service to
                    update to a new value.
 
 These are designed to be invoked on events from secret manager see
@@ -361,7 +363,8 @@ class APIKeyRotator(SecretRotatorMechanic):
                         latest = api_key
                     if createTime < change_meta.delete_oldest_time:
                         to_delete.append(api_key)
-                        logging.getLogger(__name__).info(f"Found apikey to delete {json.dumps(api_key)}")
+                        logging.getLogger(__name__).info(
+                            f"Found apikey to delete {json.dumps(api_key)}")
 
             if "nextPageToken" in api_key_list_resp:
                 psrequest = loc_api.list(
@@ -526,6 +529,7 @@ class DBRotator(SecretRotatorMechanic):
     Class that provides common mechanics for changing database passwords
     """
     BLOCKED_CHARACTERS = ";' \"\\"
+
     def __init__(self, db, statement, exclude_characters=None, password_length=20, usernamekey=None,
                  passwordkey=None):
         super(DBRotator, self).__init__()
@@ -559,6 +563,7 @@ class DBRotator(SecretRotatorMechanic):
     @property
     def statement(self):
         return self._statement
+
 
 class DBApiSingleUserPasswordRotatorConstants:
     PG = "ALTER USER {user} WITH PASSWORD '{newpassword}';"
@@ -630,8 +635,8 @@ class DBApiSingleUserPasswordRotator(DBRotator):
         conn_args = []
         if "connstring" in change_meta.config:
             conn_kwargs = {}
-            conn_args.append(change_meta.config["connstring"].format_map(server_connection_properties))
-
+            conn_args.append(
+                change_meta.config["connstring"].format_map(server_connection_properties))
 
         # we generate a new password
         new_password = self._generate_password()
@@ -647,7 +652,8 @@ class DBApiSingleUserPasswordRotator(DBRotator):
                         logging.getLogger(
                             __name__).exception("While executing {}".format(
                             self.statement.format_map(
-                                {**server_connection_properties, **change_password}).replace(
+                                {**server_connection_properties,
+                                 **{"newpassword": new_password}}).replace(
                                 secret["password"],
                                 "*********")))
                     raise
@@ -661,6 +667,7 @@ class DBApiSingleUserPasswordRotator(DBRotator):
                         num_enabled_secrets):
         return None
 
+
 class DBApiMasterUserPasswordRotatorConstants:
     PG = "ALTER USER {login_user} WITH PASSWORD '{newpassword}';"
     MARIADB = "ALTER USER '{login_user}' IDENTIFIED BY '{newpassword}';"
@@ -668,6 +675,7 @@ class DBApiMasterUserPasswordRotatorConstants:
     ORACLE = 'ALTER USER {login_user} IDENTIFIED BY "{newpassword}"'
     SYBSASE = "sp_password {password}, {newpassword} , {login_user};"
     MSSQL = "ALTER LOGIN {login_user} WITH PASSWORD = '{newpassword}';"
+
 
 class DBApiMasterUserPasswordRotator(DBRotator):
     """
@@ -687,14 +695,15 @@ class DBApiMasterUserPasswordRotator(DBRotator):
         "newpassword": "string" # the new password
     }
     """
+
     def __init__(self, db, statement, exclude_characters=None, password_length=16, usernamekey=None,
                  passwordkey=None, master_secret=None):
-        super(DBApiMasterUserPasswordRotator,self).__init__(db,
-                                                            statement,
-                                                            exclude_characters,
-                                                            password_length,
-                                                            usernamekey,
-                                                            passwordkey)
+        super(DBApiMasterUserPasswordRotator, self).__init__(db,
+                                                             statement,
+                                                             exclude_characters,
+                                                             password_length,
+                                                             usernamekey,
+                                                             passwordkey)
         self._master_secret = master_secret
 
     @property
@@ -720,8 +729,12 @@ class DBApiMasterUserPasswordRotator(DBRotator):
 
         # Get the master secret
         if not self.master_secret:
-            assert ("master_secret" in change_meta.config or "DBMASTER_SECRET" in os.environ),  "Master secret must be in config key (master_config) or env variable DBMASTER_SECRET"
-            master_secret = change_meta.config["master_secret"] if "master_secret" in change_meta.config else os.environ[
+            assert (
+                        "master_secret" in change_meta.config or "DBMASTER_SECRET" in
+                        os.environ), "Master secret must be in config key (master_config) or env " \
+                                     "variable DBMASTER_SECRET"
+            master_secret = change_meta.config[
+                "master_secret"] if "master_secret" in change_meta.config else os.environ[
                 "DBMASTER_SECRET"]
             self._master_secret = master_secret
 
@@ -766,8 +779,7 @@ class DBApiMasterUserPasswordRotator(DBRotator):
             "newpassword": new_password,
         }
 
-
-        with self.db.connect(*conn_args,**conn_kwargs) as conn:
+        with self.db.connect(*conn_args, **conn_kwargs) as conn:
             with conn.cursor() as curs:
                 try:
                     curs.execute(self.statement.format_map(
