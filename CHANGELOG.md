@@ -1,3 +1,9 @@
+## 0.4.3 (2022-06-09)
+
+### Fix
+
+- **changelog**: fix automatix management of version
+
 ## 0.4.2 (2022-06-09)
 
 ### Fix
