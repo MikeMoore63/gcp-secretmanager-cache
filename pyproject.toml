@@ -3,7 +3,7 @@
 name = "cz_conventional_commits"
 version = "0.4.1"
 ersion_files = [
-    "gcp_secretmanager_cache/_version.py",
+    "gcp_secretmanager_cache/_version.py:__version__=",
     "pyproject.toml:version"
 ]
 tag_format = "$version"
