@@ -44,7 +44,7 @@ setuptools.setup(
     scripts=[],
     install_requires=[
         "google-cloud-secret-manager~=2.0",
-        "google-api-python-client>1.0<3.0",
+        "google-api-python-client>1.0,<3.0",
         "google-cloud-storage>1.0,<3.0",
         "grpcio~=1.0",
         "python-dateutil~=2.0",
