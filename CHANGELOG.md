@@ -1,3 +1,7 @@
+## 0.4.6 (2022-06-09)
+
+- **changelog**: fix issue with setup.py that manifest when using poetru
+
 ## 0.4.5 (2022-06-09)
 
 ### Fix
