@@ -1,3 +1,7 @@
+## 0.4.7 (2025-07-14)
+
+- **CHANGELOG**: bump google-cloud-storage version
+
 ## 0.4.6 (2022-06-09)
 
 - **changelog**: fix issue with setup.py that manifest when using poetru
