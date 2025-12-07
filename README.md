@@ -120,7 +120,7 @@ Create a secret that is for apikeys that has a rotation policy. the topics and s
 
 ```python
 import pytz
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta,timezone
 from google.cloud import secretmanager, secretmanager_v1
 client = secretmanager.SecretManagerServiceClient()
 parent = "projects/demo-secret-rotation"
@@ -143,7 +143,7 @@ client.create_secret(
             },
             "rotation": {
                 "rotation_period": timedelta(seconds=3600),
-                "next_rotation_time": datetime.now(datetime.timezone.utc) + timedelta(seconds=3600),
+                "next_rotation_time": datetime.now(timezone.utc) + timedelta(seconds=3600),
             },
             "topics": [
                 secretmanager_v1.Topic(name="projects/demo-secret-rotation/topics/secretrotate")

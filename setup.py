@@ -35,7 +35,7 @@ setuptools.setup(
     url="https://github.com/Mikemoore63/gcp-secretmanager-cache",
     packages=setuptools.find_packages(),
     test_suite="nose.collector",
-    tests_require=["nose", "psycopg2-binary~=2.0", "PyMySQL", "python-tds"],
+    tests_require=["nose-py3", "psycopg2-binary~=2.0", "PyMySQL", "python-tds"],
     include_package_data=True,
     license="MIT",
     scripts=[],
@@ -49,7 +49,6 @@ setuptools.setup(
     ],
     classifiers=[
         "Programming Language :: Python :: 3",
-        "License :: OSI Approved :: MIT License",
         "Operating System :: OS Independent",
     ],
 )

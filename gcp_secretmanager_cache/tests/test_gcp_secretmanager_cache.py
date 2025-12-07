@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 """
-This modules purpose is to test bqtools-json
+This modules purpose is to test gcp-sectretmanager-cache functionality
+It requires access to GCP Secret Manager and appropriate permissions to create,delete,update secrets
+and secret versions.
 
 """
 from __future__ import absolute_import
