@@ -463,13 +463,14 @@ class SAKeyRotator(SecretRotatorMechanic):
             ):
                 to_disable.append(api_key)
                 logging.getLogger(__name__).info(
-                    f"Found sa key to disable {json.dumps(api_key)}"
+                    # only get has sensitive data so no risk
+                    f"Found api key to disable {json.dumps(api_key)}"
                 )
 
             if createTime < change_meta.delete_oldest_time:
                 to_delete.append(api_key)
                 logging.getLogger(__name__).info(
-                    f"Found sa key to delete {json.dumps(api_key)}"
+                    f"Found api key to delete {json.dumps(api_key)}"
                 )
 
         for disable_key in to_disable:

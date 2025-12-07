@@ -1,8 +1,9 @@
+"""Decorators for use with gcp secret caching library"""
 
-"""Decorators for use with gcp secret caching library """
 import json
 
 from gcp_secretmanager_cache import GCPCachedSecret
+
 
 class InjectSecretString:
     """Decorator implementing high-level Secrets Manager caching client"""
@@ -21,7 +22,7 @@ class InjectSecretString:
         :param encoding: Character encoding of secret if none is passed as binary default is UTF-8
         """
 
-        self.cache = GCPCachedSecret(secret_name=secret_id,ttl=ttl)
+        self.cache = GCPCachedSecret(secret_name=secret_id, ttl=ttl)
         self.encoding = encoding
 
     def __call__(self, func):
@@ -63,7 +64,7 @@ class InjectKeywordedSecretString:
 
         """
 
-        self.cache = GCPCachedSecret(secret_name=secret_id,ttl=ttl)
+        self.cache = GCPCachedSecret(secret_name=secret_id, ttl=ttl)
         self.kwarg_map = kwargs
         self.secret_id = secret_id
 
@@ -79,7 +80,7 @@ class InjectKeywordedSecretString:
         try:
             secret = json.loads(self.cache.get_secret())
         except json.decoder.JSONDecodeError:
-            raise RuntimeError('Cached secret is not valid JSON') from None
+            raise RuntimeError("Cached secret is not valid JSON") from None
 
         resolved_kwargs = dict()
         for orig_kwarg in self.kwarg_map:
@@ -87,7 +88,9 @@ class InjectKeywordedSecretString:
             try:
                 resolved_kwargs[orig_kwarg] = secret[secret_key]
             except KeyError:
-                raise RuntimeError('Cached secret does not contain key {0}'.format(secret_key)) from None
+                raise RuntimeError(
+                    "Cached secret does not contain key {0}".format(secret_key)
+                ) from None
 
         def _wrapped_func(*args, **kwargs):
             """
