@@ -143,8 +143,7 @@ client.create_secret(
             },
             "rotation": {
                 "rotation_period": timedelta(seconds=3600),
-                "next_rotation_time": datetime.utcnow().replace(
-                    tzinfo=pytz.UTC) + timedelta(seconds=3600),
+                "next_rotation_time": datetime.now(datetime.timezone.utc) + timedelta(seconds=3600),
             },
             "topics": [
                 secretmanager_v1.Topic(name="projects/demo-secret-rotation/topics/secretrotate")

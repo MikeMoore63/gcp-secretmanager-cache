@@ -656,7 +656,7 @@ class TestScannerMethods(unittest.TestCase):
                     },
                     "rotation": {
                         "rotation_period": timedelta(seconds=3600),
-                        "next_rotation_time": datetime.utcnow().replace(tzinfo=pytz.UTC) + timedelta(seconds=3600),
+                        "next_rotation_time": datetime.now(datetime.timezone.utc) + timedelta(seconds=3600),
                     },
                     "topics": [
                         topic
@@ -750,8 +750,7 @@ class TestScannerMethods(unittest.TestCase):
                         },
                         "rotation": {
                             "rotation_period": timedelta(seconds=3600),
-                            "next_rotation_time": datetime.utcnow().replace(
-                                tzinfo=pytz.UTC) + timedelta(seconds=3600),
+                            "next_rotation_time": datetime.now(datetime.timezone.utc) + timedelta(seconds=3600),
                         },
                         "topics": [
                             topic
@@ -835,8 +834,7 @@ class TestScannerMethods(unittest.TestCase):
                         },
                         "rotation": {
                             "rotation_period": timedelta(seconds=3600),
-                            "next_rotation_time": datetime.utcnow().replace(
-                                tzinfo=pytz.UTC) + timedelta(seconds=3600),
+                            "next_rotation_time": datetime.now(datetime.timezone.utc) + timedelta(seconds=3600),
                         },
                         "topics": [
                             topic
@@ -932,8 +930,7 @@ class TestScannerMethods(unittest.TestCase):
                         },
                         "rotation": {
                             "rotation_period": timedelta(seconds=3600),
-                            "next_rotation_time": datetime.utcnow().replace(
-                                tzinfo=pytz.UTC) + timedelta(seconds=3600),
+                            "next_rotation_time": datetime.now(datetime.timezone.utc) + timedelta(seconds=3600),
                         },
                         "topics": [
                             topic
@@ -1061,8 +1058,7 @@ class TestScannerMethods(unittest.TestCase):
                         },
                         "rotation": {
                             "rotation_period": timedelta(seconds=3600),
-                            "next_rotation_time": datetime.utcnow().replace(
-                                tzinfo=pytz.UTC) + timedelta(seconds=3600),
+                            "next_rotation_time": datetime.now(datetime.timezone.utc)+ timedelta(seconds=3600),
                         },
                         "topics": [
                             topic
@@ -1185,8 +1181,7 @@ class TestScannerMethods(unittest.TestCase):
                         },
                         "rotation": {
                             "rotation_period": timedelta(seconds=3600),
-                            "next_rotation_time": datetime.utcnow().replace(
-                                tzinfo=pytz.UTC) + timedelta(seconds=3600),
+                            "next_rotation_time": datetime.now(datetime.timezone.utc) + timedelta(seconds=3600),
                         },
                         "topics": [
                             topic

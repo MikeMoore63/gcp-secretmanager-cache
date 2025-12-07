@@ -81,12 +81,12 @@ class ChangeSecretMeta:
 
     @property
     def disable_oldest_time(self):
-        return datetime.utcnow().replace(tzinfo=pytz.UTC) - timedelta(
+        return datetime.now(datetime.timezone.utc) - timedelta(
             seconds=int(self.rotation_period_seconds * 1.5))
 
     @property
     def delete_oldest_time(self):
-        return datetime.utcnow().replace(tzinfo=pytz.UTC) - timedelta(
+        return datetime.now(datetime.timezone.utc) - timedelta(
             seconds=int(self.rotation_period_seconds * 5))
 
     @property
