@@ -10,7 +10,7 @@ import string
 import threading
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 import google.auth
 import google_crc32c
@@ -79,13 +79,13 @@ class ChangeSecretMeta:
 
     @property
     def disable_oldest_time(self):
-        return datetime.now(datetime.timezone.utc) - timedelta(
+        return datetime.now(timezone.utc) - timedelta(
             seconds=int(self.rotation_period_seconds * 1.5)
         )
 
     @property
     def delete_oldest_time(self):
-        return datetime.now(datetime.timezone.utc) - timedelta(
+        return datetime.now(timezone.utc) - timedelta(
             seconds=int(self.rotation_period_seconds * 5)
         )
 

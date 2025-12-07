@@ -11,7 +11,7 @@ import re
 import sys
 import threading
 import weakref
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from time import sleep
 
 import google.auth
@@ -37,7 +37,7 @@ def _background_refresh_thread(secret_cache_weak_ref):
     # and kill the thread anyway
     # Put a floor on the thread
     ttl = max(float(secret_cache_weak_ref().ttl), 30.0)
-    last_run = datetime.now(datetime.timezone.utc) - timedelta(seconds=ttl)
+    last_run = datetime.now(timezone.utc) - timedelta(seconds=ttl)
 
     # While the object that spawned thread exists
     while secret_cache_weak_ref():
@@ -50,9 +50,7 @@ def _background_refresh_thread(secret_cache_weak_ref):
 
         # the object cannot now go as we have a reference
         try:
-            if (
-                datetime.now(datetime.timezone.utc) - last_run
-            ).seconds >= secret_cache.ttl:
+            if (datetime.now(timezone.utc) - last_run).seconds >= secret_cache.ttl:
                 secret = secret_cache._get_secret()
                 # make the lock as short as possible
                 # largely single thread does this
@@ -62,7 +60,7 @@ def _background_refresh_thread(secret_cache_weak_ref):
                     with secret_cache.lock:
                         secret_cache.secret = secret
                         secret_cache.exception = None
-                last_run = datetime.now(datetime.timezone.utc)
+                last_run = datetime.now(timezone.utc)
                 # proactively delete referennce
                 # So object can be garbage collected during sleep
         except Exception:

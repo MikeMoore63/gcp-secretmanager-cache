@@ -21,7 +21,7 @@ import psycopg2
 import pymysql
 import pytds
 from dataclasses import asdict
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from time import sleep, perf_counter
 from googleapiclient.discovery import build
 from google.cloud import storage
@@ -699,7 +699,7 @@ class TestScannerMethods(unittest.TestCase):
                     },
                     "rotation": {
                         "rotation_period": timedelta(seconds=3600),
-                        "next_rotation_time": datetime.now(datetime.timezone.utc)
+                        "next_rotation_time": datetime.now(timezone.utc)
                         + timedelta(seconds=3600),
                     },
                     "topics": [topic],
@@ -790,7 +790,7 @@ class TestScannerMethods(unittest.TestCase):
                         },
                         "rotation": {
                             "rotation_period": timedelta(seconds=3600),
-                            "next_rotation_time": datetime.now(datetime.timezone.utc)
+                            "next_rotation_time": datetime.now(timezone.utc)
                             + timedelta(seconds=3600),
                         },
                         "topics": [topic],
@@ -873,7 +873,7 @@ class TestScannerMethods(unittest.TestCase):
                         },
                         "rotation": {
                             "rotation_period": timedelta(seconds=3600),
-                            "next_rotation_time": datetime.now(datetime.timezone.utc)
+                            "next_rotation_time": datetime.now(timezone.utc)
                             + timedelta(seconds=3600),
                         },
                         "topics": [topic],
@@ -969,7 +969,7 @@ class TestScannerMethods(unittest.TestCase):
                         },
                         "rotation": {
                             "rotation_period": timedelta(seconds=3600),
-                            "next_rotation_time": datetime.now(datetime.timezone.utc)
+                            "next_rotation_time": datetime.now(timezone.utc)
                             + timedelta(seconds=3600),
                         },
                         "topics": [topic],
@@ -1090,7 +1090,7 @@ class TestScannerMethods(unittest.TestCase):
                         },
                         "rotation": {
                             "rotation_period": timedelta(seconds=3600),
-                            "next_rotation_time": datetime.now(datetime.timezone.utc)
+                            "next_rotation_time": datetime.now(timezone.utc)
                             + timedelta(seconds=3600),
                         },
                         "topics": [topic],
@@ -1210,7 +1210,7 @@ class TestScannerMethods(unittest.TestCase):
                         },
                         "rotation": {
                             "rotation_period": timedelta(seconds=3600),
-                            "next_rotation_time": datetime.now(datetime.timezone.utc)
+                            "next_rotation_time": datetime.now(timezone.utc)
                             + timedelta(seconds=3600),
                         },
                         "topics": [topic],
