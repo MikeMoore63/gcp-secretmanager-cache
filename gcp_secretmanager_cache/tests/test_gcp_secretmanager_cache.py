@@ -904,7 +904,7 @@ class TestScannerMethods(unittest.TestCase):
         secret2 = json.loads(secret_cache.get_secret().decode("utf-8"))
         logging.getLogger(__name__).info(f"API key secret 2 is {json.dumps(secret2)}")
         assert (
-            secret["privateKeyData"] != secret2["privateKeyData"]
+            secret["private_key"] != secret2["private_key"]
         ), "Initial key and second key are not the same"
 
     def test_postgres_db_rotator(self):
