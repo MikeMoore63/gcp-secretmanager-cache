@@ -1,7 +1,5 @@
 # -*- coding: utf-8 -*-
-"""This modules implements the secret cache code
-
-"""
+"""This modules implements the secret cache code"""
 
 from __future__ import absolute_import
 from __future__ import division
@@ -13,7 +11,7 @@ import re
 import sys
 import threading
 import weakref
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from time import sleep
 
 import google.auth
@@ -22,12 +20,12 @@ from google.cloud import secretmanager, secretmanager_v1
 
 from .exceptions import NoActiveSecretVersion
 
-SECRET_SURPRESSED_EXCEPTIONS = (exceptions.ServerError,
-                                exceptions.TooManyRequests)
+SECRET_SURPRESSED_EXCEPTIONS = (exceptions.ServerError, exceptions.TooManyRequests)
 
 
 # we use a thread disconnected from class to ensure background thread
 # references don't keep the class it supports to stay alive beyond its natural lifecycle
+
 
 def _background_refresh_thread(secret_cache_weak_ref):
     """
@@ -39,7 +37,7 @@ def _background_refresh_thread(secret_cache_weak_ref):
     # and kill the thread anyway
     # Put a floor on the thread
     ttl = max(float(secret_cache_weak_ref().ttl), 30.0)
-    last_run = datetime.utcnow() - timedelta(seconds=ttl)
+    last_run = datetime.now(timezone.utc) - timedelta(seconds=ttl)
 
     # While the object that spawned thread exists
     while secret_cache_weak_ref():
@@ -52,7 +50,7 @@ def _background_refresh_thread(secret_cache_weak_ref):
 
         # the object cannot now go as we have a reference
         try:
-            if (datetime.utcnow() - last_run).seconds >= secret_cache.ttl:
+            if (datetime.now(timezone.utc) - last_run).seconds >= secret_cache.ttl:
                 secret = secret_cache._get_secret()
                 # make the lock as short as possible
                 # largely single thread does this
@@ -62,12 +60,13 @@ def _background_refresh_thread(secret_cache_weak_ref):
                     with secret_cache.lock:
                         secret_cache.secret = secret
                         secret_cache.exception = None
-                last_run = datetime.utcnow()
+                last_run = datetime.now(timezone.utc)
                 # proactively delete referennce
                 # So object can be garbage collected during sleep
-        except Exception as e:
+        except Exception:
             logging.getLogger(__name__).exception(
-                f"While refreshing secret {secret_cache.secret_name}")
+                f"While refreshing secret {secret_cache.secret_name}"
+            )
         del secret_cache
         sleep(ttl)
 
@@ -83,21 +82,23 @@ Or adding a new version. This approach does not suffer from weakness of concept 
 
 You can if you wish also follow Googles approach by specifying a version (assumed to be enabled)
 by also specifying a version. Again this acts slightly different the version selected is last
-enabled earlier or equal to version number. Version numbers always increment so we know the 
-version specified is the latest both in time and sequence.  
+enabled earlier or equal to version number. Version numbers always increment so we know the
+version specified is the latest both in time and sequence.
 
 if a latest version is specified it again defaults to last enabled (which may not be latest)
 """
 
 
-class GCPCachedSecret():
+class GCPCachedSecret:
 
     def __init__(self, secret_name, _credentials_callback=None, ttl=60.0):
-        assert ttl >= 30.0, "Trying to renew secrets at too high a frequency min is  30.0 seconds"
+        assert (
+            ttl >= 30.0
+        ), "Trying to renew secrets at too high a frequency min is  30.0 seconds"
 
         secret_version_match = re.search(
-            r'(projects/[^/]+/secrets/[^/]+)/versions/([0-9]+|latest)',
-            secret_name)
+            r"(projects/[^/]+/secrets/[^/]+)/versions/([0-9]+|latest)", secret_name
+        )
 
         max_version = None
 
@@ -119,8 +120,11 @@ class GCPCachedSecret():
 
         if _credentials_callback is not None:
             self._credentials_callback = _credentials_callback
-        t = threading.Thread(target=_background_refresh_thread,
-                             name=f"refresh_secret_{secret_name}", args=[weakref.ref(self)])
+        t = threading.Thread(
+            target=_background_refresh_thread,
+            name=f"refresh_secret_{secret_name}",
+            args=[weakref.ref(self)],
+        )
         t.daemon = True
         t.start()
         self.t = weakref.ref(t)
@@ -137,7 +141,9 @@ class GCPCachedSecret():
 
     def _client(self):
         if not hasattr(self.ns, "client"):
-            self.ns.client = secretmanager.SecretManagerServiceClient(credentials=self._credentials)
+            self.ns.client = secretmanager.SecretManagerServiceClient(
+                credentials=self._credentials
+            )
         return self.ns.client
 
     @property
@@ -162,8 +168,11 @@ class GCPCachedSecret():
             # in thread that called this or happened asynchronously
             # this looks to try and make errors appear as if the call
             # Was synchronous
-            if not secret or (self.exception and isinstance(self.exception, tuple) and
-                              not isinstance(self.exception[1], SECRET_SURPRESSED_EXCEPTIONS)):
+            if not secret or (
+                self.exception
+                and isinstance(self.exception, tuple)
+                and not isinstance(self.exception[1], SECRET_SURPRESSED_EXCEPTIONS)
+            ):
                 self.secret = None
                 raise self.exception[1]
 
@@ -174,19 +183,22 @@ class GCPCachedSecret():
         try:
             secret = None
             request = secretmanager_v1.ListSecretVersionsRequest(
-                parent=self.secret_name,
-                filter="state=ENABLED"
+                parent=self.secret_name, filter="state=ENABLED"
             )
             page_result = self._client().list_secret_versions(request=request)
             latest = None
             for response in sorted(page_result, key=lambda d: d.create_time):
                 if self._max_version:
-                    version_num = int(re.search(r'projects/[^/]+/secrets/[^/]+/versions/([0-9]+)',
-                                                response.name).group(1))
+                    version_num = int(
+                        re.search(
+                            r"projects/[^/]+/secrets/[^/]+/versions/([0-9]+)",
+                            response.name,
+                        ).group(1)
+                    )
                     if version_num == int(self._max_version):
                         latest = response
                         break
-                if (latest is None or latest.create_time < response.create_time):
+                if latest is None or latest.create_time < response.create_time:
                     if self._max_version:
                         if version_num < int(self._max_version):
                             latest = response
@@ -196,15 +208,13 @@ class GCPCachedSecret():
             if not latest:
                 raise NoActiveSecretVersion(self._secret_name)
 
-            request = secretmanager_v1.AccessSecretVersionRequest(
-                name=latest.name
-            )
+            request = secretmanager_v1.AccessSecretVersionRequest(name=latest.name)
 
             secret = self._client().access_secret_version(request).payload.data
 
             return secret
 
-        except Exception as e:
+        except Exception:
             self.exception = sys.exc_info()
 
         return secret

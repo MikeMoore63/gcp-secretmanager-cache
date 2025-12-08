@@ -12,7 +12,7 @@ import setuptools
 import re
 from io import open
 
-VERSIONFILE="gcp_secretmanager_cache/_version.py"
+VERSIONFILE = "gcp_secretmanager_cache/_version.py"
 verstrline = open(VERSIONFILE, "rt").read()
 VSRE = r"^__version__ = ['\"]([^'\"]*)['\"]"
 mo = re.search(VSRE, verstrline, re.M)
@@ -21,11 +21,11 @@ if mo:
 else:
     raise RuntimeError("Unable to find version string in %s." % (VERSIONFILE,))
 
-with open("README.md", "r", encoding='utf-8') as fh:
+with open("README.md", "r", encoding="utf-8") as fh:
     long_description = fh.read()
 
 setuptools.setup(
-    name='gcp_secretmanager_cache',
+    name="gcp_secretmanager_cache",
     version=verstr,
     author="Mike Moore",
     author_email="z_z_zebra@yahoo.com",
@@ -34,11 +34,8 @@ setuptools.setup(
     long_description=long_description,
     url="https://github.com/Mikemoore63/gcp-secretmanager-cache",
     packages=setuptools.find_packages(),
-    test_suite='nose.collector',
-    tests_require=['nose',
-                   'psycopg2-binary~=2.0',
-                   'PyMySQL',
-                   'python-tds'],
+    test_suite="nose.collector",
+    tests_require=["nose-py3", "psycopg2-binary~=2.0", "PyMySQL", "python-tds"],
     include_package_data=True,
     license="MIT",
     scripts=[],
@@ -48,12 +45,10 @@ setuptools.setup(
         "google-cloud-storage>1.0,<4.0",
         "grpcio~=1.0",
         "python-dateutil~=2.0",
-        "pytz>=2022.0"
+        "pytz>=2022.0",
     ],
     classifiers=[
         "Programming Language :: Python :: 3",
-        "License :: OSI Approved :: MIT License",
         "Operating System :: OS Independent",
     ],
-
 )
