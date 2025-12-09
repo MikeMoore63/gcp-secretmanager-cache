@@ -74,9 +74,16 @@ def function_to_be_decorated(arg1, arg2, arg3):
 The library also provides mechanisms to handle secret rotation based upon pubsub events triggered by secret rotation events.
 It provides a base framework that orchestrates (SecretRotator class) the creation of new secrets and manages the mechanic of enabling an disabling and deleting versions in secret manager. For each type of secret a "mechanic" (a sub class of SecretRotatorMechanic) for managing the secret material needs to be provided.
 
-The library offers an abstract mechanic for adding as basis of new concrete secret management mechanics. Plus concrete implemntations. See table below for details of concrete implementations. The mechanics are designed to be configurable by using a json structured file in cloud storage for example a database password mechanic might need to know the username, the server address and port of the server. Or an apikey need to be able to have different annotations or restrictions. This mechanic is implemented using specific labels on the secrets. The config "object" is then used in the mechanic process.
+The library offers an abstract mechanic for adding as basis of new concrete secret management mechanics. Plus concrete implemntations. See table below for details of concrete implementations. The mechanics are designed to be configurable. For example, a database password mechanic might need to know the username, server address, and port, while an API key mechanic might need specific restrictions or annotations.
 
-The labels that MUST be attached for this to happen are illustrated below. NB these are restricted by label limitations of charater support and length;
+This configuration can be provided in two ways:
+
+1.  **Via Secret Annotations (Recommended for smaller configs):** A `config` annotation can be added to the secret, containing a JSON string with the necessary configuration. This is simpler as it doesn't require a separate GCS object.
+2.  **Via a GCS Object (For larger or shared configs):** The configuration can be stored in a JSON file in a Google Cloud Storage bucket. The secret must then have `config_bucket` and `config_object` labels pointing to this file.
+
+In both cases, a `secret_type` label is required to identify which mechanic to use. The rotator will first look for the `config` annotation and use it if present. If not, it will fall back to looking for the GCS object labels.
+
+Here is an example of the required `secret_type` label and the GCS-based configuration labels. Note that labels have character and length restrictions.
 ```json
 {
   "secret_type": "enum (Secret Type)",
@@ -84,6 +91,50 @@ The labels that MUST be attached for this to happen are illustrated below. NB th
   "config_object": "string"  # The object name in the bucket holding json utf-8 encoded config        
 }
 ```
+
+**Annotations Example**: If your configuration is small you can store it directly
+in the secret as an annotation. The rotator looks for an annotation named
+`config` (which must be a JSON string) and will parse that as the configuration.
+
+Example: create a secret with a `config` annotation that contains JSON for the
+rotator (this example is for a service-account-key rotator that needs the
+service account resource name):
+```python
+import json
+from datetime import datetime, timedelta, timezone
+from google.cloud import secretmanager, secretmanager_v1
+
+client = secretmanager.SecretManagerServiceClient()
+parent = "projects/your-project-id"
+secret_id = "MY_SAKEY_ROTATION"
+
+config = json.dumps({
+    "name": "projects/your-project-id/serviceAccounts/my-sa@your-project-id.iam.gserviceaccount.com"
+})
+
+client.create_secret(
+    request={
+        "parent": parent,
+        "secret_id": secret_id,
+        "secret": {
+            "replication": {"automatic": {}},
+            "labels": {"secret_type": "google-serviceaccount"},
+            "annotations": {"config": config},
+            "rotation": {
+                "rotation_period": timedelta(seconds=3600),
+                "next_rotation_time": datetime.now(timezone.utc) + timedelta(seconds=3600),
+            },
+            "topics": [secretmanager_v1.Topic(name="projects/your-project-id/topics/secretrotate")],
+        },
+    }
+)
+```
+
+Notes:
+- The annotation value must be a JSON string (use `json.dumps(...)`).
+- The rotator prefers the `config` annotation; if not present it will fall
+  back to `config_bucket`/`config_object` labels that point to a GCS JSON blob.
+
 The concrete implemntations of secret rotators are documented below. For these to work the approriate roles MUST be granted to the process to be able to do its job.
 
 |secret_type| Mechanic Class                     | What it manages the secret of                                                                                                                                                                                                                                                                                                                                                                                                                                  |
@@ -165,7 +216,3 @@ rotator_mechanism = SecretRotator(APIKeyRotator())
 # https://cloud.google.com/secret-manager/docs/event-notifications
 rotator_mechanism.rotate_secret(message_attributes, data)
 ```
-
-
-
-
