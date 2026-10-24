@@ -44,7 +44,7 @@ setuptools.setup(
         "google-api-python-client>1.0,<3.0",
         "google-cloud-storage>1.0,<4.0",
         "grpcio~=1.0",
-        "python-dateutil~=2.0",
+        "python-dateutil~=3.0",
         "pytz>=2022.0",
     ],
     classifiers=[
